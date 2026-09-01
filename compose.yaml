@@ -42,6 +42,7 @@ services:
       SPRING_PROFILES_ACTIVE: local
       CORS_ALLOWED_ORIGIN: http://localhost:5173
       JWT_SECRET: local-development-only-secret-with-at-least-32-characters
+      PROFILE_ENCRYPTION_KEY: bG9jYWwtcHJvZmlsZS1rZXktZXhhY3RseS0zMi1ieXQ=
       MAIL_HOST: mailpit
       MAIL_PORT: 1025
       MAIL_SMTP_AUTH: "false"

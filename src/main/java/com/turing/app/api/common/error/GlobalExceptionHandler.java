@@ -13,6 +13,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import com.turing.app.api.auth.exception.AuthException;
+import com.turing.app.api.profile.exception.ProfileException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -22,6 +24,16 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AuthException.class)
     public ResponseEntity<ApiErrorResponse> handleAuth(AuthException exception, HttpServletRequest request) {
         return buildResponse(exception.getStatus(), exception.getCode(), exception.getMessage(), request, List.of());
+    }
+
+    @ExceptionHandler(ProfileException.class)
+    public ResponseEntity<ApiErrorResponse> handleProfile(ProfileException exception, HttpServletRequest request) {
+        return buildResponse(exception.getStatus(), exception.getCode(), exception.getMessage(), request, List.of());
+    }
+
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<ApiErrorResponse> handleOptimisticLock(Exception exception, HttpServletRequest request) {
+        return buildResponse(HttpStatus.CONFLICT, "VERSION_CONFLICT", "Kayıt başka bir işlem tarafından güncellendi. Sayfayı yenileyin.", request, List.of());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
