@@ -1,0 +1,74 @@
+package com.turing.app.api.common.error;
+
+import jakarta.servlet.http.HttpServletRequest;
+import java.time.Instant;
+import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+@RestControllerAdvice
+public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ApiErrorResponse> handleValidation(
+            MethodArgumentNotValidException exception,
+            HttpServletRequest request
+    ) {
+        List<FieldErrorResponse> fieldErrors = exception.getBindingResult().getFieldErrors().stream()
+                .map(this::toFieldError)
+                .toList();
+
+        return buildResponse(
+                HttpStatus.BAD_REQUEST,
+                "VALIDATION_FAILED",
+                "Gönderilen alanları kontrol edin.",
+                request,
+                fieldErrors
+        );
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ApiErrorResponse> handleUnexpected(Exception exception, HttpServletRequest request) {
+        log.error("Unexpected request failure method={} path={}", request.getMethod(), request.getRequestURI(), exception);
+        return buildResponse(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "INTERNAL_ERROR",
+                "Beklenmeyen bir hata oluştu.",
+                request,
+                List.of()
+        );
+    }
+
+    private FieldErrorResponse toFieldError(FieldError error) {
+        return new FieldErrorResponse(error.getField(), error.getDefaultMessage());
+    }
+
+    private ResponseEntity<ApiErrorResponse> buildResponse(
+            HttpStatus status,
+            String code,
+            String message,
+            HttpServletRequest request,
+            List<FieldErrorResponse> fieldErrors
+    ) {
+        ApiErrorResponse response = new ApiErrorResponse(
+                Instant.now(),
+                status.value(),
+                status.getReasonPhrase(),
+                code,
+                message,
+                request.getRequestURI(),
+                MDC.get("requestId"),
+                fieldErrors
+        );
+        return ResponseEntity.status(status).body(response);
+    }
+}
