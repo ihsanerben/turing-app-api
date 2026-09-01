@@ -1,0 +1,20 @@
+spring:
+  mail:
+    host: localhost
+    port: 1025
+    test-connection: false
+
+app:
+  auth:
+    jwt-secret: diagnostic-only-test-secret-with-at-least-thirty-two-characters
+    access-expiration: PT15M
+    refresh-expiration: P14D
+    verification-expiration: PT24H
+    password-reset-expiration: PT1H
+    cookie-secure: false
+    cookie-same-site: Lax
+    cookie-domain: ""
+    frontend-base-url: http://localhost:5173
+    mail-from: no-reply@turing.local
+    rate-limit-max-attempts: 100
+    rate-limit-window: PT15M

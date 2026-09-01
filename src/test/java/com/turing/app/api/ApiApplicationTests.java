@@ -6,9 +6,11 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.springframework.test.context.ActiveProfiles;
 
 @SpringBootTest
 @Testcontainers
+@ActiveProfiles("test")
 class ApiApplicationTests {
 
     @Container
