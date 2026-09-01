@@ -18,3 +18,5 @@ app:
     mail-from: no-reply@turing.local
     rate-limit-max-attempts: 100
     rate-limit-window: PT15M
+  profile:
+    encryption-key: dGVzdC1vbmx5LXByb2ZpbGUta2V5LTMyLWJ5dGVzISE=
