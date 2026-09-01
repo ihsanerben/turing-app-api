@@ -41,6 +41,13 @@ services:
       DB_PASSWORD: turing_pass
       SPRING_PROFILES_ACTIVE: local
       CORS_ALLOWED_ORIGIN: http://localhost:5173
+      JWT_SECRET: local-development-only-secret-with-at-least-32-characters
+      MAIL_HOST: mailpit
+      MAIL_PORT: 1025
+      MAIL_SMTP_AUTH: "false"
+      MAIL_STARTTLS_ENABLED: "false"
+      MAIL_FROM: no-reply@turing.local
+      FRONTEND_BASE_URL: http://localhost:5173
     ports:
       - "8080:8080"
     depends_on:

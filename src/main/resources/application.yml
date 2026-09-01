@@ -17,6 +17,17 @@ spring:
         jdbc:
           time_zone: UTC
     show-sql: false
+  mail:
+    host: ${MAIL_HOST}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:true}
+          starttls:
+            enable: ${MAIL_STARTTLS_ENABLED:true}
 
 server:
   port: ${SERVER_PORT:8080}
@@ -31,3 +42,16 @@ logging:
 app:
   cors:
     allowed-origin: ${CORS_ALLOWED_ORIGIN:http://localhost:5173}
+  auth:
+    jwt-secret: ${JWT_SECRET}
+    access-expiration: ${JWT_ACCESS_EXPIRATION:PT15M}
+    refresh-expiration: ${JWT_REFRESH_EXPIRATION:P14D}
+    verification-expiration: ${EMAIL_VERIFICATION_EXPIRATION:PT24H}
+    password-reset-expiration: ${PASSWORD_RESET_EXPIRATION:PT1H}
+    cookie-secure: ${COOKIE_SECURE:true}
+    cookie-same-site: ${COOKIE_SAME_SITE:Lax}
+    cookie-domain: ${COOKIE_DOMAIN:}
+    frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:5173}
+    mail-from: ${MAIL_FROM:no-reply@turing.local}
+    rate-limit-max-attempts: ${AUTH_RATE_LIMIT_MAX_ATTEMPTS:10}
+    rate-limit-window: ${AUTH_RATE_LIMIT_WINDOW:PT15M}
