@@ -11,6 +11,7 @@ public record FormFieldRequest(
     @NotNull FormFieldType type,
     boolean required,
     @Size(max=250) String placeholder,
+    UUID requirementId,
     @NotNull Map<String,Object> validationRules,
     @NotNull List<@Valid FormOptionRequest> options
 ) {}

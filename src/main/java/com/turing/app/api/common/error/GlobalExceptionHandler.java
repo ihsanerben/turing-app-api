@@ -12,6 +12,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import com.turing.app.api.auth.exception.AuthException;
 import com.turing.app.api.profile.exception.ProfileException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
@@ -46,6 +47,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
     public ResponseEntity<ApiErrorResponse> handleOptimisticLock(Exception exception, HttpServletRequest request) {
         return buildResponse(HttpStatus.CONFLICT, "VERSION_CONFLICT", "Kayıt başka bir işlem tarafından güncellendi. Sayfayı yenileyin.", request, List.of());
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiErrorResponse> handleMaxUploadSize(MaxUploadSizeExceededException exception, HttpServletRequest request) {
+        return buildResponse(HttpStatus.PAYLOAD_TOO_LARGE, "FILE_TOO_LARGE", "Dosya izin verilen boyutu aşıyor.", request, List.of());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
