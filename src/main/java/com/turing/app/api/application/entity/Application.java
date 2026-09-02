@@ -25,6 +25,8 @@ public class Application {
     public static Application draft(StudentProfile profile,ApplicationPeriod period,FormDefinition form,Instant now){Application value=new Application();value.id=UUID.randomUUID();value.profile=profile;value.period=period;value.form=form;value.status=ApplicationStatus.DRAFT;value.createdAt=now;value.updatedAt=now;return value;}
     public void answersChanged(int value,Instant now){completion=value;updatedAt=now;}
     public void submit(Instant now){status=ApplicationStatus.SUBMITTED;completion=100;submittedAt=now;updatedAt=now;}
+    public void resubmit(Instant now){status=ApplicationStatus.SUBMITTED;updatedAt=now;}
     public void withdraw(Instant now){status=ApplicationStatus.WITHDRAWN;updatedAt=now;}
+    public void changeStatus(ApplicationStatus next,Instant now){status=next;if(next==ApplicationStatus.APPROVED||next==ApplicationStatus.REJECTED||next==ApplicationStatus.WAITLISTED)decisionAt=now;updatedAt=now;}
     public UUID getId(){return id;} public StudentProfile getProfile(){return profile;} public ApplicationPeriod getPeriod(){return period;} public FormDefinition getForm(){return form;} public ApplicationStatus getStatus(){return status;} public int getCompletion(){return completion;} public BigDecimal getCalculatedScore(){return calculatedScore;} public Instant getSubmittedAt(){return submittedAt;} public Instant getDecisionAt(){return decisionAt;} public Instant getCreatedAt(){return createdAt;} public long getVersion(){return version;}
 }

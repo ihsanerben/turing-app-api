@@ -16,4 +16,5 @@ public class ApplicationStatusHistory {
     @Column(name="created_at",nullable=false) private Instant createdAt;
     protected ApplicationStatusHistory() {}
     public static ApplicationStatusHistory create(Application app,ApplicationStatus oldStatus,ApplicationStatus next,User actor,String reason,Instant now){ApplicationStatusHistory value=new ApplicationStatusHistory();value.id=UUID.randomUUID();value.application=app;value.oldStatus=oldStatus;value.newStatus=next;value.changedBy=actor;value.reason=reason;value.createdAt=now;return value;}
+    public UUID getId(){return id;}public ApplicationStatus getOldStatus(){return oldStatus;}public ApplicationStatus getNewStatus(){return newStatus;}public User getChangedBy(){return changedBy;}public String getReason(){return reason;}public Instant getCreatedAt(){return createdAt;}
 }
