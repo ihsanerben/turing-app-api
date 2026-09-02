@@ -1,0 +1,1 @@
+package com.turing.app.api.interview.dto;import com.turing.app.api.interview.entity.InterviewStatus;import jakarta.validation.constraints.*;public record InterviewStatusRequest(@NotNull InterviewStatus status,@NotNull @PositiveOrZero Long version){}
