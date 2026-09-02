@@ -21,6 +21,10 @@ class ScholarshipControllerIT{
   Instant now=Instant.now();String period="{\"programId\":\""+programId+"\",\"name\":\"2026 Başvuruları\",\"academicYear\":\"2026-2027\",\"startsAt\":\""+now.minusSeconds(60)+"\",\"endsAt\":\""+now.plusSeconds(86400)+"\",\"maxRecipients\":20,\"allowWithdrawal\":true}";
   MvcResult periodResult=mvc.perform(post("/api/admin/application-periods").with(csrf()).cookie(access).contentType(MediaType.APPLICATION_JSON).content(period)).andExpect(status().isCreated()).andExpect(jsonPath("$.status").value("DRAFT")).andReturn();
   String periodId=com.jayway.jsonpath.JsonPath.read(periodResult.getResponse().getContentAsString(),"$.id");
+  MvcResult formResult=mvc.perform(post("/api/admin/application-periods/"+periodId+"/forms").with(csrf()).cookie(access).contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Başvuru Formu\"}" )).andExpect(status().isCreated()).andReturn();
+  String formId=com.jayway.jsonpath.JsonPath.read(formResult.getResponse().getContentAsString(),"$.id");
+  mvc.perform(put("/api/admin/forms/"+formId+"/schema").with(csrf()).cookie(access).contentType(MediaType.APPLICATION_JSON).content("{\"version\":0,\"name\":\"Başvuru Formu\",\"sections\":[{\"title\":\"Genel\",\"description\":null,\"fields\":[{\"key\":\"motivation\",\"label\":\"Motivasyon\",\"type\":\"TEXTAREA\",\"required\":true,\"placeholder\":null,\"validationRules\":{},\"options\":[]}]}]}" )).andExpect(status().isOk());
+  mvc.perform(post("/api/admin/forms/"+formId+"/publish").with(csrf()).cookie(access).contentType(MediaType.APPLICATION_JSON).content("{\"version\":1}" )).andExpect(status().isOk());
   mvc.perform(patch("/api/admin/application-periods/"+periodId+"/status").with(csrf()).cookie(access).contentType(MediaType.APPLICATION_JSON).content("{\"version\":0,\"status\":\"OPEN\"}"))
     .andExpect(status().isOk()).andExpect(jsonPath("$.version").value(1));
   mvc.perform(patch("/api/admin/application-periods/"+periodId+"/status").with(csrf()).cookie(access).contentType(MediaType.APPLICATION_JSON).content("{\"version\":1,\"status\":\"SCHEDULED\"}"))
