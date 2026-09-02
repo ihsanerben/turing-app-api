@@ -1,0 +1,26 @@
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+
+server:
+  forward-headers-strategy: native
+  shutdown: graceful
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+app:
+  cors:
+    allowed-origin: ${CORS_ALLOWED_ORIGIN}
+  auth:
+    jwt-secret: ${JWT_SECRET}
+    cookie-secure: true
+    cookie-same-site: ${COOKIE_SAME_SITE:Lax}
+    cookie-domain: ${COOKIE_DOMAIN}
+  profile:
+    encryption-key: ${PROFILE_ENCRYPTION_KEY}

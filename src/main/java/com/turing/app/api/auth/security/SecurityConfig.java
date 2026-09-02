@@ -10,6 +10,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.header.writers.StaticHeadersWriter;
 
 @Configuration
 public class SecurityConfig {
@@ -29,6 +30,21 @@ public class SecurityConfig {
       throws Exception {
     http.cors(cors -> {})
         .csrf(csrf -> csrf.spa())
+        .headers(
+            headers ->
+                headers
+                    .contentSecurityPolicy(
+                        policy ->
+                            policy.policyDirectives(
+                                "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"))
+                    .referrerPolicy(
+                        policy ->
+                            policy.policy(
+                                org.springframework.security.web.header.writers
+                                    .ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER))
+                    .addHeaderWriter(
+                        new StaticHeadersWriter(
+                            "Permissions-Policy", "camera=(), microphone=(), geolocation=()")))
         .sessionManagement(
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(
