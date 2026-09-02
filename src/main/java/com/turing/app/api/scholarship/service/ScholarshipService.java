@@ -15,9 +15,9 @@ import tools.jackson.databind.ObjectMapper;
 @Service
 public class ScholarshipService {
     private static final Set<PeriodStatus> PUBLIC_STATUSES=Set.of(PeriodStatus.SCHEDULED,PeriodStatus.OPEN);
-    private final ScholarshipProgramRepository programs; private final ApplicationPeriodRepository periods;
+    private final ScholarshipProgramRepository programs; private final ApplicationPeriodRepository periods; private final FormDefinitionRepository forms;
     private final AuditService audit; private final ObjectMapper json; private final Clock clock;
-    public ScholarshipService(ScholarshipProgramRepository programs,ApplicationPeriodRepository periods,AuditService audit,ObjectMapper json,Clock clock){this.programs=programs;this.periods=periods;this.audit=audit;this.json=json;this.clock=clock;}
+    public ScholarshipService(ScholarshipProgramRepository programs,ApplicationPeriodRepository periods,FormDefinitionRepository forms,AuditService audit,ObjectMapper json,Clock clock){this.programs=programs;this.periods=periods;this.forms=forms;this.audit=audit;this.json=json;this.clock=clock;}
 
     @Transactional(readOnly=true) public List<ProgramResponse> adminPrograms(){return programs.findAllByOrderByNameAsc().stream().map(ProgramResponse::from).toList();}
     @Transactional(readOnly=true) public ProgramResponse program(UUID id){return ProgramResponse.from(findProgram(id));}
@@ -62,7 +62,8 @@ public class ScholarshipService {
 
     private void validateTransition(ApplicationPeriod p,PeriodStatus next,Instant now){PeriodStatus current=p.getStatus();boolean allowed=switch(current){case DRAFT->next==PeriodStatus.SCHEDULED||next==PeriodStatus.OPEN||next==PeriodStatus.ARCHIVED;case SCHEDULED->next==PeriodStatus.OPEN||next==PeriodStatus.ARCHIVED;case OPEN->next==PeriodStatus.CLOSED;case CLOSED->next==PeriodStatus.EVALUATION;case EVALUATION->next==PeriodStatus.COMPLETED;case COMPLETED->next==PeriodStatus.ARCHIVED;case ARCHIVED->false;};if(!allowed)throw conflict("INVALID_PERIOD_TRANSITION",current+" durumundan "+next+" durumuna geçilemez.");
         if(next==PeriodStatus.SCHEDULED&&!p.getStartsAt().isAfter(now))throw bad("INVALID_SCHEDULE","Planlanan başlangıç gelecekte olmalıdır.");
-        if(next==PeriodStatus.OPEN&&(now.isBefore(p.getStartsAt())||!now.isBefore(p.getEndsAt())))throw bad("OUTSIDE_APPLICATION_WINDOW","Başvuru dönemi yalnız tarih aralığında açılabilir.");}
+        if(next==PeriodStatus.OPEN&&(now.isBefore(p.getStartsAt())||!now.isBefore(p.getEndsAt())))throw bad("OUTSIDE_APPLICATION_WINDOW","Başvuru dönemi yalnız tarih aralığında açılabilir.");
+        if(next==PeriodStatus.OPEN&&!forms.existsByPeriodIdAndStatus(p.getId(),FormStatus.PUBLISHED))throw conflict("PUBLISHED_FORM_REQUIRED","Başvuru dönemi açılmadan önce bir form yayınlanmalıdır.");}
     private void validateDates(Instant start,Instant end){if(!end.isAfter(start))throw bad("INVALID_PERIOD_DATES","Bitiş başlangıçtan sonra olmalıdır.");}
     private ScholarshipProgram findProgram(UUID id){return programs.findById(id).orElseThrow(()->notFound("PROGRAM_NOT_FOUND","Burs programı bulunamadı."));}
     private ApplicationPeriod findPeriod(UUID id){return periods.findById(id).orElseThrow(()->notFound("PERIOD_NOT_FOUND","Başvuru dönemi bulunamadı."));}
