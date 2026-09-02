@@ -20,6 +20,7 @@ import com.turing.app.api.scholarship.exception.ScholarshipException;
 import com.turing.app.api.application.exception.ApplicationException;
 import com.turing.app.api.evaluation.exception.EvaluationException;
 import com.turing.app.api.interview.exception.InterviewException;
+import com.turing.app.api.notification.exception.NotificationException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -53,6 +54,11 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(InterviewException.class)
     public ResponseEntity<ApiErrorResponse> handleInterview(InterviewException exception, HttpServletRequest request) {
+        return buildResponse(exception.getStatus(), exception.getCode(), exception.getMessage(), request, List.of());
+    }
+
+    @ExceptionHandler(NotificationException.class)
+    public ResponseEntity<ApiErrorResponse> handleNotification(NotificationException exception, HttpServletRequest request) {
         return buildResponse(exception.getStatus(), exception.getCode(), exception.getMessage(), request, List.of());
     }
 
