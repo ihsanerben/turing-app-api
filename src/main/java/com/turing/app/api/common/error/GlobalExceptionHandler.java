@@ -16,6 +16,7 @@ import com.turing.app.api.auth.exception.AuthException;
 import com.turing.app.api.profile.exception.ProfileException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import com.turing.app.api.scholarship.exception.ScholarshipException;
+import com.turing.app.api.application.exception.ApplicationException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -34,6 +35,11 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ScholarshipException.class)
     public ResponseEntity<ApiErrorResponse> handleScholarship(ScholarshipException exception, HttpServletRequest request) {
+        return buildResponse(exception.getStatus(), exception.getCode(), exception.getMessage(), request, List.of());
+    }
+
+    @ExceptionHandler(ApplicationException.class)
+    public ResponseEntity<ApiErrorResponse> handleApplication(ApplicationException exception, HttpServletRequest request) {
         return buildResponse(exception.getStatus(), exception.getCode(), exception.getMessage(), request, List.of());
     }
 
