@@ -1,6 +1,7 @@
 package com.turing.app.api.common.error;
 
 import com.turing.app.api.application.exception.ApplicationException;
+import com.turing.app.api.audit.exception.AuditException;
 import com.turing.app.api.auth.exception.AuthException;
 import com.turing.app.api.content.exception.ContentException;
 import com.turing.app.api.evaluation.exception.EvaluationException;
@@ -31,6 +32,13 @@ public class GlobalExceptionHandler {
   @ExceptionHandler(AuthException.class)
   public ResponseEntity<ApiErrorResponse> handleAuth(
       AuthException exception, HttpServletRequest request) {
+    return buildResponse(
+        exception.getStatus(), exception.getCode(), exception.getMessage(), request, List.of());
+  }
+
+  @ExceptionHandler(AuditException.class)
+  public ResponseEntity<ApiErrorResponse> handleAudit(
+      AuditException exception, HttpServletRequest request) {
     return buildResponse(
         exception.getStatus(), exception.getCode(), exception.getMessage(), request, List.of());
   }
