@@ -1,3 +1,81 @@
 package com.turing.app.api.notification.service;
-import com.turing.app.api.notification.dto.NotificationDtos.NotificationResponse;import com.turing.app.api.notification.exception.NotificationException;import java.sql.ResultSet;import java.time.*;import java.util.*;import org.springframework.http.HttpStatus;import org.springframework.jdbc.core.JdbcTemplate;import org.springframework.stereotype.Service;import org.springframework.transaction.annotation.Transactional;
-@Service public class NotificationService{private final JdbcTemplate jdbc;private final Clock clock;public NotificationService(JdbcTemplate jdbc,Clock clock){this.jdbc=jdbc;this.clock=clock;}@Transactional public void create(UUID userId,String title,String message,String type,String relatedType,UUID relatedId){jdbc.update("insert into notifications(id,user_id,title,message,type,related_type,related_id,created_at) values(?,?,?,?,?,?,?,?)",UUID.randomUUID(),userId,title,message,type,relatedType,relatedId,now());}@Transactional(readOnly=true)public List<NotificationResponse> mine(UUID userId){return jdbc.query("select * from notifications where user_id=? order by created_at desc",(rs,n)->map(rs),userId);}@Transactional public NotificationResponse read(UUID userId,UUID id){int count=jdbc.update("update notifications set read_at=coalesce(read_at,?) where id=? and user_id=?",now(),id,userId);if(count==0)throw new NotificationException(HttpStatus.NOT_FOUND,"NOTIFICATION_NOT_FOUND","Bildirim bulunamadı.");return jdbc.queryForObject("select * from notifications where id=? and user_id=?",(rs,n)->map(rs),id,userId);}private NotificationResponse map(ResultSet rs)throws java.sql.SQLException{return new NotificationResponse(rs.getObject("id",UUID.class),rs.getString("title"),rs.getString("message"),rs.getString("type"),rs.getString("related_type"),rs.getObject("related_id",UUID.class),instant(rs,"read_at"),instant(rs,"created_at"));}private Instant instant(ResultSet rs,String name)throws java.sql.SQLException{var value=rs.getTimestamp(name);return value==null?null:value.toInstant();}private OffsetDateTime now(){return OffsetDateTime.ofInstant(clock.instant(),ZoneOffset.UTC);}}
+
+import com.turing.app.api.notification.dto.NotificationDtos.NotificationResponse;
+import com.turing.app.api.notification.exception.NotificationException;
+import java.sql.ResultSet;
+import java.time.*;
+import java.util.*;
+import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+public class NotificationService {
+  private final JdbcTemplate jdbc;
+  private final Clock clock;
+
+  public NotificationService(JdbcTemplate jdbc, Clock clock) {
+    this.jdbc = jdbc;
+    this.clock = clock;
+  }
+
+  @Transactional
+  public void create(
+      UUID userId, String title, String message, String type, String relatedType, UUID relatedId) {
+    jdbc.update(
+        "insert into notifications(id,user_id,title,message,type,related_type,related_id,created_at) values(?,?,?,?,?,?,?,?)",
+        UUID.randomUUID(),
+        userId,
+        title,
+        message,
+        type,
+        relatedType,
+        relatedId,
+        now());
+  }
+
+  @Transactional(readOnly = true)
+  public List<NotificationResponse> mine(UUID userId) {
+    return jdbc.query(
+        "select * from notifications where user_id=? order by created_at desc",
+        (rs, n) -> map(rs),
+        userId);
+  }
+
+  @Transactional
+  public NotificationResponse read(UUID userId, UUID id) {
+    int count =
+        jdbc.update(
+            "update notifications set read_at=coalesce(read_at,?) where id=? and user_id=?",
+            now(),
+            id,
+            userId);
+    if (count == 0)
+      throw new NotificationException(
+          HttpStatus.NOT_FOUND, "NOTIFICATION_NOT_FOUND", "Bildirim bulunamadı.");
+    return jdbc.queryForObject(
+        "select * from notifications where id=? and user_id=?", (rs, n) -> map(rs), id, userId);
+  }
+
+  private NotificationResponse map(ResultSet rs) throws java.sql.SQLException {
+    return new NotificationResponse(
+        rs.getObject("id", UUID.class),
+        rs.getString("title"),
+        rs.getString("message"),
+        rs.getString("type"),
+        rs.getString("related_type"),
+        rs.getObject("related_id", UUID.class),
+        instant(rs, "read_at"),
+        instant(rs, "created_at"));
+  }
+
+  private Instant instant(ResultSet rs, String name) throws java.sql.SQLException {
+    var value = rs.getTimestamp(name);
+    return value == null ? null : value.toInstant();
+  }
+
+  private OffsetDateTime now() {
+    return OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
+  }
+}

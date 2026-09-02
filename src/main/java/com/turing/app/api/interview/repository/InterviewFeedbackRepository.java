@@ -1,1 +1,12 @@
-package com.turing.app.api.interview.repository;import com.turing.app.api.interview.entity.InterviewFeedback;import java.util.*;import org.springframework.data.jpa.repository.JpaRepository;public interface InterviewFeedbackRepository extends JpaRepository<InterviewFeedback,UUID>{List<InterviewFeedback> findByInterviewIdOrderByCreatedAtAsc(UUID interviewId);Optional<InterviewFeedback> findByInterviewIdAndInterviewerId(UUID interviewId,UUID interviewerId);}
+package com.turing.app.api.interview.repository;
+
+import com.turing.app.api.interview.entity.InterviewFeedback;
+import java.util.*;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface InterviewFeedbackRepository extends JpaRepository<InterviewFeedback, UUID> {
+  List<InterviewFeedback> findByInterviewIdOrderByCreatedAtAsc(UUID interviewId);
+
+  Optional<InterviewFeedback> findByInterviewIdAndInterviewerId(
+      UUID interviewId, UUID interviewerId);
+}

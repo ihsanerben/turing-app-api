@@ -12,25 +12,350 @@ import com.turing.app.api.scholarship.entity.*;
 import com.turing.app.api.scholarship.repository.ApplicationPeriodRepository;
 import com.turing.app.api.user.entity.User;
 import com.turing.app.api.user.repository.UserRepository;
-import java.math.*;import java.time.*;import java.util.*;import java.util.stream.Collectors;
-import org.springframework.dao.DataIntegrityViolationException;import org.springframework.http.HttpStatus;import org.springframework.stereotype.Service;import org.springframework.transaction.annotation.Transactional;
+import java.math.*;
+import java.time.*;
+import java.util.*;
+import java.util.stream.Collectors;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class EvaluationService {
- private static final Set<ApplicationStatus> EXCLUDED=EnumSet.of(ApplicationStatus.DRAFT,ApplicationStatus.WITHDRAWN,ApplicationStatus.MISSING_DOCUMENT);
- private final EvaluationCriterionRepository criteria;private final EvaluationScoreRepository scores;private final ApplicationPeriodRepository periods;private final ApplicationRepository applications;private final UserRepository users;private final AuditService audit;private final Clock clock;
- public EvaluationService(EvaluationCriterionRepository criteria,EvaluationScoreRepository scores,ApplicationPeriodRepository periods,ApplicationRepository applications,UserRepository users,AuditService audit,Clock clock){this.criteria=criteria;this.scores=scores;this.periods=periods;this.applications=applications;this.users=users;this.audit=audit;this.clock=clock;}
- @Transactional(readOnly=true) public List<CriterionResponse> criteria(UUID periodId){period(periodId);return criteria.findByPeriodIdOrderByDisplayOrderAsc(periodId).stream().map(CriterionResponse::from).toList();}
- @Transactional public CriterionResponse create(UUID actorId,UUID periodId,CriterionRequest r,String ip){ApplicationPeriod p=period(periodId);ensureCriteriaMutable(p);ensureUnique(periodId,r,null);try{EvaluationCriterion saved=criteria.saveAndFlush(EvaluationCriterion.create(p,r.name().trim(),clean(r.description()),r.maxScore(),r.weight(),r.displayOrder(),clock.instant()));audit.record(actorId,"EVALUATION_CRITERION_CREATED","EVALUATION_CRITERION",saved.getId(),"{}",criterionJson(saved),ip);return CriterionResponse.from(saved);}catch(DataIntegrityViolationException e){throw conflict("CRITERION_CONFLICT","Aynı ad veya sırada başka bir kriter bulunuyor.");}}
- @Transactional public CriterionResponse update(UUID actorId,UUID id,CriterionRequest r,String ip){EvaluationCriterion c=criterion(id);checkVersion(c.getVersion(),r.version());ensureCriteriaMutable(c.getPeriod());boolean scored=scores.existsByCriterionId(id);if(scored&&(c.getMaxScore().compareTo(r.maxScore())!=0||c.getWeight().compareTo(r.weight())!=0))throw conflict("CRITERION_SCORING_STARTED","Puanlama başladıktan sonra maksimum puan ve ağırlık değiştirilemez.");ensureUnique(c.getPeriod().getId(),r,c);String old=criterionJson(c);c.update(r.name().trim(),clean(r.description()),r.maxScore(),r.weight(),r.displayOrder(),clock.instant());try{criteria.flush();audit.record(actorId,"EVALUATION_CRITERION_UPDATED","EVALUATION_CRITERION",id,old,criterionJson(c),ip);return CriterionResponse.from(c);}catch(DataIntegrityViolationException e){throw conflict("CRITERION_CONFLICT","Aynı ad veya sırada başka bir kriter bulunuyor.");}}
- @Transactional public void delete(UUID actorId,UUID id,Long version,String ip){EvaluationCriterion c=criterion(id);checkVersion(c.getVersion(),version);ensureCriteriaMutable(c.getPeriod());if(scores.existsByCriterionId(id))throw conflict("CRITERION_SCORING_STARTED","Puanlanmış kriter silinemez.");criteria.delete(c);criteria.flush();audit.record(actorId,"EVALUATION_CRITERION_DELETED","EVALUATION_CRITERION",id,criterionJson(c),"{}",ip);}
- @Transactional public ApplicationEvaluation upsertScore(UUID actorId,UUID applicationId,UUID criterionId,ScoreRequest r,String ip){Application app=application(applicationId);EvaluationCriterion criterion=criterion(criterionId);if(!app.getPeriod().getId().equals(criterion.getPeriod().getId()))throw bad("CRITERION_PERIOD_MISMATCH","Kriter başvurunun dönemine ait değil.");if(app.getPeriod().getStatus()!=PeriodStatus.EVALUATION)throw conflict("PERIOD_NOT_IN_EVALUATION","Puanlama yalnız değerlendirme aşamasındaki dönemde yapılabilir.");if(EXCLUDED.contains(app.getStatus()))throw conflict("APPLICATION_NOT_EVALUATABLE","Bu başvuru puanlanamaz.");if(r.score().compareTo(criterion.getMaxScore())>0)throw bad("SCORE_EXCEEDS_MAX","Puan kriterin maksimum puanını aşamaz.");User reviewer=users.findById(actorId).orElseThrow(()->notFound("REVIEWER_NOT_FOUND","Değerlendirici bulunamadı."));Optional<EvaluationScore> existing=scores.findByApplicationIdAndCriterionIdAndReviewerId(applicationId,criterionId,actorId);EvaluationScore score;if(existing.isPresent()){score=existing.get();checkVersion(score.getVersion(),r.version());score.update(r.score(),clean(r.comment()),clock.instant());}else{if(r.version()!=null&&r.version()!=0)throw version();score=scores.save(EvaluationScore.create(app,criterion,reviewer,r.score(),clean(r.comment()),clock.instant()));}try{scores.flush();recalculate(app);applications.flush();audit.record(actorId,"EVALUATION_SCORE_UPSERTED","APPLICATION",applicationId,"{}","{\"criterionId\":\""+criterionId+"\",\"score\":"+r.score()+"}",ip);return evaluation(app);}catch(DataIntegrityViolationException e){throw conflict("SCORE_CONFLICT","Bu kriter için değerlendirici puanı zaten bulunuyor.");}}
- @Transactional(readOnly=true) public ApplicationEvaluation evaluation(UUID applicationId){return evaluation(application(applicationId));}
- @Transactional(readOnly=true) public List<Ranking> ranking(UUID periodId){period(periodId);List<Application> apps=applications.findByPeriodIdAndStatusNotIn(periodId,EXCLUDED).stream().sorted(Comparator.comparing(Application::getCalculatedScore,Comparator.nullsLast(Comparator.reverseOrder())).thenComparing(Application::getSubmittedAt,Comparator.nullsLast(Comparator.naturalOrder())).thenComparing(Application::getId)).toList();List<Ranking> result=new ArrayList<>();BigDecimal previous=null;int rank=0;for(int i=0;i<apps.size();i++){Application a=apps.get(i);if(a.getCalculatedScore()!=null&&(previous==null||a.getCalculatedScore().compareTo(previous)!=0))rank=i+1;if(a.getCalculatedScore()==null)rank=0;result.add(new Ranking(rank,a.getId(),a.getProfile().getUser().getFirstName()+" "+a.getProfile().getUser().getLastName(),a.getProfile().getUser().getEmail(),a.getCalculatedScore()));previous=a.getCalculatedScore();}return result;}
- private void recalculate(Application app){List<EvaluationCriterion> cs=criteria.findByPeriodIdOrderByDisplayOrderAsc(app.getPeriod().getId());List<EvaluationScore> ss=scores.findByApplicationId(app.getId());Map<UUID,List<EvaluationScore>> grouped=ss.stream().collect(Collectors.groupingBy(s->s.getCriterion().getId()));BigDecimal weighted=BigDecimal.ZERO,totalWeight=BigDecimal.ZERO;for(EvaluationCriterion c:cs){List<EvaluationScore> values=grouped.get(c.getId());if(values==null||values.isEmpty())continue;BigDecimal avg=values.stream().map(EvaluationScore::getScore).reduce(BigDecimal.ZERO,BigDecimal::add).divide(BigDecimal.valueOf(values.size()),6,RoundingMode.HALF_UP);weighted=weighted.add(avg.divide(c.getMaxScore(),8,RoundingMode.HALF_UP).multiply(c.getWeight()));totalWeight=totalWeight.add(c.getWeight());}BigDecimal total=totalWeight.signum()==0?null:weighted.divide(totalWeight,6,RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100)).setScale(3,RoundingMode.HALF_UP);app.updateCalculatedScore(total,clock.instant());}
- private ApplicationEvaluation evaluation(Application app){List<Score> values=scores.findByApplicationId(app.getId()).stream().sorted(Comparator.comparingInt(s->s.getCriterion().getDisplayOrder())).map(s->new Score(s.getId(),s.getCriterion().getId(),s.getCriterion().getName(),s.getCriterion().getMaxScore(),s.getCriterion().getWeight(),s.getReviewer().getId(),s.getReviewer().getFirstName()+" "+s.getReviewer().getLastName(),s.getScore(),s.getComment(),s.getVersion())).toList();return new ApplicationEvaluation(app.getId(),app.getCalculatedScore(),values);}
- private void ensureUnique(UUID periodId,CriterionRequest r,EvaluationCriterion current){for(EvaluationCriterion c:criteria.findByPeriodIdOrderByDisplayOrderAsc(periodId))if(current==null||!c.getId().equals(current.getId())){if(c.getName().equalsIgnoreCase(r.name().trim())||c.getDisplayOrder()==r.displayOrder())throw conflict("CRITERION_CONFLICT","Aynı ad veya sırada başka bir kriter bulunuyor.");}}
- private void ensureCriteriaMutable(ApplicationPeriod p){if(p.getStatus()==PeriodStatus.COMPLETED||p.getStatus()==PeriodStatus.ARCHIVED)throw conflict("CRITERIA_IMMUTABLE","Tamamlanmış veya arşivlenmiş dönemin kriterleri değiştirilemez.");}
- private ApplicationPeriod period(UUID id){return periods.findById(id).orElseThrow(()->notFound("PERIOD_NOT_FOUND","Başvuru dönemi bulunamadı."));}private EvaluationCriterion criterion(UUID id){return criteria.findById(id).orElseThrow(()->notFound("CRITERION_NOT_FOUND","Değerlendirme kriteri bulunamadı."));}private Application application(UUID id){return applications.findById(id).orElseThrow(()->notFound("APPLICATION_NOT_FOUND","Başvuru bulunamadı."));}
- private void checkVersion(long actual,Long supplied){if(supplied==null||actual!=supplied)throw version();}private EvaluationException version(){return conflict("EVALUATION_VERSION_CONFLICT","Kayıt başka bir işlem tarafından güncellendi. Sayfayı yenileyin.");}private String clean(String v){return v==null||v.isBlank()?null:v.trim();}private String criterionJson(EvaluationCriterion c){return "{\"name\":\""+c.getName().replace("\"","\\\"")+"\",\"maxScore\":"+c.getMaxScore()+",\"weight\":"+c.getWeight()+",\"displayOrder\":"+c.getDisplayOrder()+"}";}private EvaluationException bad(String c,String m){return new EvaluationException(HttpStatus.BAD_REQUEST,c,m);}private EvaluationException conflict(String c,String m){return new EvaluationException(HttpStatus.CONFLICT,c,m);}private EvaluationException notFound(String c,String m){return new EvaluationException(HttpStatus.NOT_FOUND,c,m);}
+  private static final Set<ApplicationStatus> EXCLUDED =
+      EnumSet.of(
+          ApplicationStatus.DRAFT, ApplicationStatus.WITHDRAWN, ApplicationStatus.MISSING_DOCUMENT);
+  private final EvaluationCriterionRepository criteria;
+  private final EvaluationScoreRepository scores;
+  private final ApplicationPeriodRepository periods;
+  private final ApplicationRepository applications;
+  private final UserRepository users;
+  private final AuditService audit;
+  private final Clock clock;
+
+  public EvaluationService(
+      EvaluationCriterionRepository criteria,
+      EvaluationScoreRepository scores,
+      ApplicationPeriodRepository periods,
+      ApplicationRepository applications,
+      UserRepository users,
+      AuditService audit,
+      Clock clock) {
+    this.criteria = criteria;
+    this.scores = scores;
+    this.periods = periods;
+    this.applications = applications;
+    this.users = users;
+    this.audit = audit;
+    this.clock = clock;
+  }
+
+  @Transactional(readOnly = true)
+  public List<CriterionResponse> criteria(UUID periodId) {
+    period(periodId);
+    return criteria.findByPeriodIdOrderByDisplayOrderAsc(periodId).stream()
+        .map(CriterionResponse::from)
+        .toList();
+  }
+
+  @Transactional
+  public CriterionResponse create(UUID actorId, UUID periodId, CriterionRequest r, String ip) {
+    ApplicationPeriod p = period(periodId);
+    ensureCriteriaMutable(p);
+    ensureUnique(periodId, r, null);
+    try {
+      EvaluationCriterion saved =
+          criteria.saveAndFlush(
+              EvaluationCriterion.create(
+                  p,
+                  r.name().trim(),
+                  clean(r.description()),
+                  r.maxScore(),
+                  r.weight(),
+                  r.displayOrder(),
+                  clock.instant()));
+      audit.record(
+          actorId,
+          "EVALUATION_CRITERION_CREATED",
+          "EVALUATION_CRITERION",
+          saved.getId(),
+          "{}",
+          criterionJson(saved),
+          ip);
+      return CriterionResponse.from(saved);
+    } catch (DataIntegrityViolationException e) {
+      throw conflict("CRITERION_CONFLICT", "Aynı ad veya sırada başka bir kriter bulunuyor.");
+    }
+  }
+
+  @Transactional
+  public CriterionResponse update(UUID actorId, UUID id, CriterionRequest r, String ip) {
+    EvaluationCriterion c = criterion(id);
+    checkVersion(c.getVersion(), r.version());
+    ensureCriteriaMutable(c.getPeriod());
+    boolean scored = scores.existsByCriterionId(id);
+    if (scored
+        && (c.getMaxScore().compareTo(r.maxScore()) != 0
+            || c.getWeight().compareTo(r.weight()) != 0))
+      throw conflict(
+          "CRITERION_SCORING_STARTED",
+          "Puanlama başladıktan sonra maksimum puan ve ağırlık değiştirilemez.");
+    ensureUnique(c.getPeriod().getId(), r, c);
+    String old = criterionJson(c);
+    c.update(
+        r.name().trim(),
+        clean(r.description()),
+        r.maxScore(),
+        r.weight(),
+        r.displayOrder(),
+        clock.instant());
+    try {
+      criteria.flush();
+      audit.record(
+          actorId,
+          "EVALUATION_CRITERION_UPDATED",
+          "EVALUATION_CRITERION",
+          id,
+          old,
+          criterionJson(c),
+          ip);
+      return CriterionResponse.from(c);
+    } catch (DataIntegrityViolationException e) {
+      throw conflict("CRITERION_CONFLICT", "Aynı ad veya sırada başka bir kriter bulunuyor.");
+    }
+  }
+
+  @Transactional
+  public void delete(UUID actorId, UUID id, Long version, String ip) {
+    EvaluationCriterion c = criterion(id);
+    checkVersion(c.getVersion(), version);
+    ensureCriteriaMutable(c.getPeriod());
+    if (scores.existsByCriterionId(id))
+      throw conflict("CRITERION_SCORING_STARTED", "Puanlanmış kriter silinemez.");
+    criteria.delete(c);
+    criteria.flush();
+    audit.record(
+        actorId,
+        "EVALUATION_CRITERION_DELETED",
+        "EVALUATION_CRITERION",
+        id,
+        criterionJson(c),
+        "{}",
+        ip);
+  }
+
+  @Transactional
+  public ApplicationEvaluation upsertScore(
+      UUID actorId, UUID applicationId, UUID criterionId, ScoreRequest r, String ip) {
+    Application app = application(applicationId);
+    EvaluationCriterion criterion = criterion(criterionId);
+    if (!app.getPeriod().getId().equals(criterion.getPeriod().getId()))
+      throw bad("CRITERION_PERIOD_MISMATCH", "Kriter başvurunun dönemine ait değil.");
+    if (app.getPeriod().getStatus() != PeriodStatus.EVALUATION)
+      throw conflict(
+          "PERIOD_NOT_IN_EVALUATION",
+          "Puanlama yalnız değerlendirme aşamasındaki dönemde yapılabilir.");
+    if (EXCLUDED.contains(app.getStatus()))
+      throw conflict("APPLICATION_NOT_EVALUATABLE", "Bu başvuru puanlanamaz.");
+    if (r.score().compareTo(criterion.getMaxScore()) > 0)
+      throw bad("SCORE_EXCEEDS_MAX", "Puan kriterin maksimum puanını aşamaz.");
+    User reviewer =
+        users
+            .findById(actorId)
+            .orElseThrow(() -> notFound("REVIEWER_NOT_FOUND", "Değerlendirici bulunamadı."));
+    Optional<EvaluationScore> existing =
+        scores.findByApplicationIdAndCriterionIdAndReviewerId(applicationId, criterionId, actorId);
+    EvaluationScore score;
+    if (existing.isPresent()) {
+      score = existing.get();
+      checkVersion(score.getVersion(), r.version());
+      score.update(r.score(), clean(r.comment()), clock.instant());
+    } else {
+      if (r.version() != null && r.version() != 0) throw version();
+      score =
+          scores.save(
+              EvaluationScore.create(
+                  app, criterion, reviewer, r.score(), clean(r.comment()), clock.instant()));
+    }
+    try {
+      scores.flush();
+      recalculate(app);
+      applications.flush();
+      audit.record(
+          actorId,
+          "EVALUATION_SCORE_UPSERTED",
+          "APPLICATION",
+          applicationId,
+          "{}",
+          "{\"criterionId\":\"" + criterionId + "\",\"score\":" + r.score() + "}",
+          ip);
+      return evaluation(app);
+    } catch (DataIntegrityViolationException e) {
+      throw conflict("SCORE_CONFLICT", "Bu kriter için değerlendirici puanı zaten bulunuyor.");
+    }
+  }
+
+  @Transactional(readOnly = true)
+  public ApplicationEvaluation evaluation(UUID applicationId) {
+    return evaluation(application(applicationId));
+  }
+
+  @Transactional(readOnly = true)
+  public List<Ranking> ranking(UUID periodId) {
+    period(periodId);
+    List<Application> apps =
+        applications.findByPeriodIdAndStatusNotIn(periodId, EXCLUDED).stream()
+            .sorted(
+                Comparator.comparing(
+                        Application::getCalculatedScore,
+                        Comparator.nullsLast(Comparator.reverseOrder()))
+                    .thenComparing(
+                        Application::getSubmittedAt,
+                        Comparator.nullsLast(Comparator.naturalOrder()))
+                    .thenComparing(Application::getId))
+            .toList();
+    List<Ranking> result = new ArrayList<>();
+    BigDecimal previous = null;
+    int rank = 0;
+    for (int i = 0; i < apps.size(); i++) {
+      Application a = apps.get(i);
+      if (a.getCalculatedScore() != null
+          && (previous == null || a.getCalculatedScore().compareTo(previous) != 0)) rank = i + 1;
+      if (a.getCalculatedScore() == null) rank = 0;
+      result.add(
+          new Ranking(
+              rank,
+              a.getId(),
+              a.getProfile().getUser().getFirstName()
+                  + " "
+                  + a.getProfile().getUser().getLastName(),
+              a.getProfile().getUser().getEmail(),
+              a.getCalculatedScore()));
+      previous = a.getCalculatedScore();
+    }
+    return result;
+  }
+
+  private void recalculate(Application app) {
+    List<EvaluationCriterion> cs =
+        criteria.findByPeriodIdOrderByDisplayOrderAsc(app.getPeriod().getId());
+    List<EvaluationScore> ss = scores.findByApplicationId(app.getId());
+    Map<UUID, List<EvaluationScore>> grouped =
+        ss.stream().collect(Collectors.groupingBy(s -> s.getCriterion().getId()));
+    BigDecimal weighted = BigDecimal.ZERO, totalWeight = BigDecimal.ZERO;
+    for (EvaluationCriterion c : cs) {
+      List<EvaluationScore> values = grouped.get(c.getId());
+      if (values == null || values.isEmpty()) continue;
+      BigDecimal avg =
+          values.stream()
+              .map(EvaluationScore::getScore)
+              .reduce(BigDecimal.ZERO, BigDecimal::add)
+              .divide(BigDecimal.valueOf(values.size()), 6, RoundingMode.HALF_UP);
+      weighted =
+          weighted.add(
+              avg.divide(c.getMaxScore(), 8, RoundingMode.HALF_UP).multiply(c.getWeight()));
+      totalWeight = totalWeight.add(c.getWeight());
+    }
+    BigDecimal total =
+        totalWeight.signum() == 0
+            ? null
+            : weighted
+                .divide(totalWeight, 6, RoundingMode.HALF_UP)
+                .multiply(BigDecimal.valueOf(100))
+                .setScale(3, RoundingMode.HALF_UP);
+    app.updateCalculatedScore(total, clock.instant());
+  }
+
+  private ApplicationEvaluation evaluation(Application app) {
+    List<Score> values =
+        scores.findByApplicationId(app.getId()).stream()
+            .sorted(Comparator.comparingInt(s -> s.getCriterion().getDisplayOrder()))
+            .map(
+                s ->
+                    new Score(
+                        s.getId(),
+                        s.getCriterion().getId(),
+                        s.getCriterion().getName(),
+                        s.getCriterion().getMaxScore(),
+                        s.getCriterion().getWeight(),
+                        s.getReviewer().getId(),
+                        s.getReviewer().getFirstName() + " " + s.getReviewer().getLastName(),
+                        s.getScore(),
+                        s.getComment(),
+                        s.getVersion()))
+            .toList();
+    return new ApplicationEvaluation(app.getId(), app.getCalculatedScore(), values);
+  }
+
+  private void ensureUnique(UUID periodId, CriterionRequest r, EvaluationCriterion current) {
+    for (EvaluationCriterion c : criteria.findByPeriodIdOrderByDisplayOrderAsc(periodId))
+      if (current == null || !c.getId().equals(current.getId())) {
+        if (c.getName().equalsIgnoreCase(r.name().trim())
+            || c.getDisplayOrder() == r.displayOrder())
+          throw conflict("CRITERION_CONFLICT", "Aynı ad veya sırada başka bir kriter bulunuyor.");
+      }
+  }
+
+  private void ensureCriteriaMutable(ApplicationPeriod p) {
+    if (p.getStatus() == PeriodStatus.COMPLETED || p.getStatus() == PeriodStatus.ARCHIVED)
+      throw conflict(
+          "CRITERIA_IMMUTABLE", "Tamamlanmış veya arşivlenmiş dönemin kriterleri değiştirilemez.");
+  }
+
+  private ApplicationPeriod period(UUID id) {
+    return periods
+        .findById(id)
+        .orElseThrow(() -> notFound("PERIOD_NOT_FOUND", "Başvuru dönemi bulunamadı."));
+  }
+
+  private EvaluationCriterion criterion(UUID id) {
+    return criteria
+        .findById(id)
+        .orElseThrow(() -> notFound("CRITERION_NOT_FOUND", "Değerlendirme kriteri bulunamadı."));
+  }
+
+  private Application application(UUID id) {
+    return applications
+        .findById(id)
+        .orElseThrow(() -> notFound("APPLICATION_NOT_FOUND", "Başvuru bulunamadı."));
+  }
+
+  private void checkVersion(long actual, Long supplied) {
+    if (supplied == null || actual != supplied) throw version();
+  }
+
+  private EvaluationException version() {
+    return conflict(
+        "EVALUATION_VERSION_CONFLICT",
+        "Kayıt başka bir işlem tarafından güncellendi. Sayfayı yenileyin.");
+  }
+
+  private String clean(String v) {
+    return v == null || v.isBlank() ? null : v.trim();
+  }
+
+  private String criterionJson(EvaluationCriterion c) {
+    return "{\"name\":\""
+        + c.getName().replace("\"", "\\\"")
+        + "\",\"maxScore\":"
+        + c.getMaxScore()
+        + ",\"weight\":"
+        + c.getWeight()
+        + ",\"displayOrder\":"
+        + c.getDisplayOrder()
+        + "}";
+  }
+
+  private EvaluationException bad(String c, String m) {
+    return new EvaluationException(HttpStatus.BAD_REQUEST, c, m);
+  }
+
+  private EvaluationException conflict(String c, String m) {
+    return new EvaluationException(HttpStatus.CONFLICT, c, m);
+  }
+
+  private EvaluationException notFound(String c, String m) {
+    return new EvaluationException(HttpStatus.NOT_FOUND, c, m);
+  }
 }
