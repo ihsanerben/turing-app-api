@@ -9,4 +9,5 @@ public interface ApplicationRepository extends JpaRepository<Application,UUID>,J
     List<Application> findByProfileUserIdOrderByCreatedAtDesc(UUID userId);
     Optional<Application> findByIdAndProfileUserId(UUID id,UUID userId);
     boolean existsByProfileIdAndPeriodId(UUID profileId,UUID periodId);
+    List<Application> findByPeriodIdAndStatusNotIn(UUID periodId,Collection<com.turing.app.api.application.entity.ApplicationStatus> statuses);
 }
