@@ -23,17 +23,54 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.mock.web.MockMultipartFile;
 
 class DocumentServiceTest {
-    @Test
-    @SuppressWarnings("unchecked")
-    void removesUploadedObjectWhenMetadataPersistenceFails() {
-        DocumentRequirementRepository requirements=mock(DocumentRequirementRepository.class);StoredFileRepository files=mock(StoredFileRepository.class);ApplicationRepository applications=mock(ApplicationRepository.class);ApplicationPeriodRepository periods=mock(ApplicationPeriodRepository.class);UserRepository users=mock(UserRepository.class);ObjectProvider<ObjectStorage> provider=mock(ObjectProvider.class);ObjectStorage storage=mock(ObjectStorage.class);Clock clock=Clock.fixed(Instant.parse("2026-09-02T09:00:00Z"),ZoneOffset.UTC);
-        UUID userId=UUID.randomUUID(),applicationId=UUID.randomUUID(),requirementId=UUID.randomUUID();ApplicationPeriod period=mock(ApplicationPeriod.class);Application application=mock(Application.class);DocumentRequirement requirement=mock(DocumentRequirement.class);User user=mock(User.class);
-        when(applications.findByIdAndProfileUserId(applicationId,userId)).thenReturn(Optional.of(application));when(application.getStatus()).thenReturn(ApplicationStatus.DRAFT);when(application.getPeriod()).thenReturn(period);when(period.getId()).thenReturn(UUID.randomUUID());when(period.getStatus()).thenReturn(PeriodStatus.OPEN);when(period.getStartsAt()).thenReturn(clock.instant().minusSeconds(60));when(period.getEndsAt()).thenReturn(clock.instant().plusSeconds(60));when(requirements.findById(requirementId)).thenReturn(Optional.of(requirement));when(requirement.getPeriod()).thenReturn(period);when(requirement.getMaxSizeBytes()).thenReturn(1024L);when(requirement.getAllowedMimeTypes()).thenReturn(List.of("application/pdf"));when(provider.getIfAvailable()).thenReturn(storage);when(users.findById(userId)).thenReturn(Optional.of(user));when(files.findByApplicationIdAndRequirementIdAndStatus(any(),any(),any())).thenReturn(Optional.empty());when(files.saveAndFlush(any())).thenThrow(new DataIntegrityViolationException("forced"));
-        DocumentService service=new DocumentService(requirements,files,applications,periods,users,provider,clock);
+  @Test
+  @SuppressWarnings("unchecked")
+  void removesUploadedObjectWhenMetadataPersistenceFails() {
+    DocumentRequirementRepository requirements = mock(DocumentRequirementRepository.class);
+    StoredFileRepository files = mock(StoredFileRepository.class);
+    ApplicationRepository applications = mock(ApplicationRepository.class);
+    ApplicationPeriodRepository periods = mock(ApplicationPeriodRepository.class);
+    UserRepository users = mock(UserRepository.class);
+    ObjectProvider<ObjectStorage> provider = mock(ObjectProvider.class);
+    ObjectStorage storage = mock(ObjectStorage.class);
+    Clock clock = Clock.fixed(Instant.parse("2026-09-02T09:00:00Z"), ZoneOffset.UTC);
+    UUID userId = UUID.randomUUID(),
+        applicationId = UUID.randomUUID(),
+        requirementId = UUID.randomUUID();
+    ApplicationPeriod period = mock(ApplicationPeriod.class);
+    Application application = mock(Application.class);
+    DocumentRequirement requirement = mock(DocumentRequirement.class);
+    User user = mock(User.class);
+    when(applications.findByIdAndProfileUserId(applicationId, userId))
+        .thenReturn(Optional.of(application));
+    when(application.getStatus()).thenReturn(ApplicationStatus.DRAFT);
+    when(application.getPeriod()).thenReturn(period);
+    when(period.getId()).thenReturn(UUID.randomUUID());
+    when(period.getStatus()).thenReturn(PeriodStatus.OPEN);
+    when(period.getStartsAt()).thenReturn(clock.instant().minusSeconds(60));
+    when(period.getEndsAt()).thenReturn(clock.instant().plusSeconds(60));
+    when(requirements.findById(requirementId)).thenReturn(Optional.of(requirement));
+    when(requirement.getPeriod()).thenReturn(period);
+    when(requirement.getMaxSizeBytes()).thenReturn(1024L);
+    when(requirement.getAllowedMimeTypes()).thenReturn(List.of("application/pdf"));
+    when(provider.getIfAvailable()).thenReturn(storage);
+    when(users.findById(userId)).thenReturn(Optional.of(user));
+    when(files.findByApplicationIdAndRequirementIdAndStatus(any(), any(), any()))
+        .thenReturn(Optional.empty());
+    when(files.saveAndFlush(any())).thenThrow(new DataIntegrityViolationException("forced"));
+    DocumentService service =
+        new DocumentService(requirements, files, applications, periods, users, provider, clock);
 
-        assertThatThrownBy(()->service.upload(userId,applicationId,requirementId,new MockMultipartFile("file","proof.pdf","application/pdf","%PDF-1.4 proof".getBytes())))
-                .hasMessageContaining("Dosya kaydı tamamlanamadı");
-        verify(storage).put(anyString(),any(),eq("application/pdf"));
-        verify(storage).delete(anyString());
-    }
+    assertThatThrownBy(
+            () ->
+                service.upload(
+                    userId,
+                    applicationId,
+                    requirementId,
+                    new MockMultipartFile(
+                        "file", "proof.pdf", "application/pdf", "%PDF-1.4 proof".getBytes())))
+        .hasMessageContaining("Dosya kaydı tamamlanamadı");
+    verify(storage).put(anyString(), any(), eq("application/pdf"));
+    verify(storage).delete(anyString());
+  }
 }

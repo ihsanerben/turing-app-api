@@ -1,1 +1,15 @@
-package com.turing.app.api.content.repository;import com.turing.app.api.content.entity.*;import java.util.*;import org.springframework.data.jpa.repository.JpaRepository;public interface AnnouncementRepository extends JpaRepository<Announcement,UUID>{List<Announcement>findAllByOrderByCreatedAtDesc();List<Announcement>findByStatusOrderByPublishedAtDesc(AnnouncementStatus status);Optional<Announcement>findBySlugAndStatus(String slug,AnnouncementStatus status);Optional<Announcement>findBySlugIgnoreCase(String slug);}
+package com.turing.app.api.content.repository;
+
+import com.turing.app.api.content.entity.*;
+import java.util.*;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface AnnouncementRepository extends JpaRepository<Announcement, UUID> {
+  List<Announcement> findAllByOrderByCreatedAtDesc();
+
+  List<Announcement> findByStatusOrderByPublishedAtDesc(AnnouncementStatus status);
+
+  Optional<Announcement> findBySlugAndStatus(String slug, AnnouncementStatus status);
+
+  Optional<Announcement> findBySlugIgnoreCase(String slug);
+}

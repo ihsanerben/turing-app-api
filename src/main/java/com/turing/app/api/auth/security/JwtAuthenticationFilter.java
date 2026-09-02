@@ -14,29 +14,46 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
-    private final JwtService jwtService;
-    public JwtAuthenticationFilter(JwtService jwtService) { this.jwtService = jwtService; }
-    @Override protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
-            throws ServletException, IOException {
-        String token = cookie(request, CookieService.ACCESS);
-        if (token != null) {
-            try {
-                Jwt jwt = jwtService.decode(token);
-                if ("access".equals(jwt.getClaimAsString("type"))) {
-                    AuthenticatedUser user = new AuthenticatedUser(UUID.fromString(jwt.getSubject()),
-                            jwt.getClaimAsString("email"), jwt.getClaimAsString("role"));
-                    SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
-                            user, null, java.util.List.of(new SimpleGrantedAuthority("ROLE_" + user.role()))));
-                }
-            } catch (RuntimeException ignored) {
-                SecurityContextHolder.clearContext();
-            }
+  private final JwtService jwtService;
+
+  public JwtAuthenticationFilter(JwtService jwtService) {
+    this.jwtService = jwtService;
+  }
+
+  @Override
+  protected void doFilterInternal(
+      HttpServletRequest request, HttpServletResponse response, FilterChain chain)
+      throws ServletException, IOException {
+    String token = cookie(request, CookieService.ACCESS);
+    if (token != null) {
+      try {
+        Jwt jwt = jwtService.decode(token);
+        if ("access".equals(jwt.getClaimAsString("type"))) {
+          AuthenticatedUser user =
+              new AuthenticatedUser(
+                  UUID.fromString(jwt.getSubject()),
+                  jwt.getClaimAsString("email"),
+                  jwt.getClaimAsString("role"));
+          SecurityContextHolder.getContext()
+              .setAuthentication(
+                  new UsernamePasswordAuthenticationToken(
+                      user,
+                      null,
+                      java.util.List.of(new SimpleGrantedAuthority("ROLE_" + user.role()))));
         }
-        chain.doFilter(request, response);
+      } catch (RuntimeException ignored) {
+        SecurityContextHolder.clearContext();
+      }
     }
-    public static String cookie(HttpServletRequest request, String name) {
-        if (request.getCookies() == null) return null;
-        return Arrays.stream(request.getCookies()).filter(cookie -> name.equals(cookie.getName()))
-                .map(Cookie::getValue).findFirst().orElse(null);
-    }
+    chain.doFilter(request, response);
+  }
+
+  public static String cookie(HttpServletRequest request, String name) {
+    if (request.getCookies() == null) return null;
+    return Arrays.stream(request.getCookies())
+        .filter(cookie -> name.equals(cookie.getName()))
+        .map(Cookie::getValue)
+        .findFirst()
+        .orElse(null);
+  }
 }

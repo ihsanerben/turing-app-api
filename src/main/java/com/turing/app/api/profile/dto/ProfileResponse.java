@@ -6,8 +6,23 @@ import java.time.*;
 import java.util.UUID;
 
 public record ProfileResponse(
-        UUID id, UUID userId, Long version, String nationalId, LocalDate birthDate, String phone,
-        String addressLine, String city, String postalCode, String countryCode,
-        UUID universityId, String universityName, UUID departmentId, String departmentName,
-        String otherUniversity, String otherDepartment, EducationLevel educationLevel,
-        Integer studyYear, BigDecimal gpa, Instant updatedAt) {}
+    UUID id,
+    UUID userId,
+    Long version,
+    String nationalId,
+    LocalDate birthDate,
+    String phone,
+    String addressLine,
+    String city,
+    String postalCode,
+    String countryCode,
+    UUID universityId,
+    String universityName,
+    UUID departmentId,
+    String departmentName,
+    String otherUniversity,
+    String otherDepartment,
+    EducationLevel educationLevel,
+    Integer studyYear,
+    BigDecimal gpa,
+    Instant updatedAt) {}

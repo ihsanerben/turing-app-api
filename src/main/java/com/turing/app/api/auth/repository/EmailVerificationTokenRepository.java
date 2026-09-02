@@ -7,7 +7,8 @@ import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 
-public interface EmailVerificationTokenRepository extends JpaRepository<EmailVerificationToken, UUID> {
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    Optional<EmailVerificationToken> findByTokenHash(String tokenHash);
+public interface EmailVerificationTokenRepository
+    extends JpaRepository<EmailVerificationToken, UUID> {
+  @Lock(LockModeType.PESSIMISTIC_WRITE)
+  Optional<EmailVerificationToken> findByTokenHash(String tokenHash);
 }
