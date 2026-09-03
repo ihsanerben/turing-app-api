@@ -41,8 +41,15 @@ public class FormFieldOption {
     return option;
   }
 
-  void attach(FormField value) {
+  public void attach(FormField value) {
     field = value;
+  }
+
+  public void update(String label, String value, int order, Instant now) {
+    this.label = label;
+    this.value = value;
+    this.displayOrder = order;
+    this.updatedAt = now;
   }
 
   public UUID getId() {
