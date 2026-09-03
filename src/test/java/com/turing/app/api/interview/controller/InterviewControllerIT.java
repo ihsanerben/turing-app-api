@@ -63,6 +63,11 @@ class InterviewControllerIT {
                 .getResponse()
                 .getContentAsString(),
             "$.id");
+    mvc.perform(get("/api/admin/interviews").cookie(admin))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].id").value(id))
+        .andExpect(jsonPath("$[0].studentName").value("Test User"))
+        .andExpect(jsonPath("$[0].programName").isNotEmpty());
     mvc.perform(get("/api/me/interviews").cookie(student))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$[0].meetingUrl").value("https://meet.example/interview"))
@@ -127,7 +132,7 @@ class InterviewControllerIT {
         now,
         now);
     jdbc.update(
-        "insert into application_periods(id,program_id,name,academic_year,starts_at,ends_at,status,allow_withdrawal,created_at,updated_at,version)values(?,?,?,?,?,?,'EVALUATION',true,?,?,0)",
+        "insert into application_periods(id,program_id,name,academic_year,starts_at,ends_at,status,allow_withdrawal,created_at,updated_at,version)values(?,?,?,?,?,?,'CLOSED',true,?,?,0)",
         period,
         program,
         "Interview Period",

@@ -8,7 +8,10 @@ import java.util.UUID;
 
 public record ProfileUpdateRequest(
     @PositiveOrZero Long version,
-    @Size(max = 64) String nationalId,
+    @Pattern(
+            regexp = "^[1-9][0-9]{10}$",
+            message = "Kimlik numarası 11 rakam olmalı ve sıfırla başlamamalıdır.")
+        String nationalId,
     @Past LocalDate birthDate,
     @Pattern(regexp = "^\\+?[0-9 ()-]{7,32}$") String phone,
     @Size(max = 300) String addressLine,

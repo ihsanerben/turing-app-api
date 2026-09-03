@@ -49,6 +49,12 @@ public class ApplicationNote {
     return value;
   }
 
+  public void update(User admin, String content, Instant now) {
+    this.admin = admin;
+    this.content = content;
+    this.updatedAt = now;
+  }
+
   public UUID getId() {
     return id;
   }

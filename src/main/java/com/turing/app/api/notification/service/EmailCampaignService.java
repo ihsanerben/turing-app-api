@@ -16,6 +16,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.*;
+import org.springframework.web.multipart.MultipartFile;
 import tools.jackson.databind.ObjectMapper;
 
 @Service
@@ -47,6 +48,12 @@ public class EmailCampaignService {
 
   @Transactional
   public CampaignDetail create(UUID actor, CampaignRequest request, String ip) {
+    return create(actor, request, null, ip);
+  }
+
+  @Transactional
+  public CampaignDetail create(
+      UUID actor, CampaignRequest request, MultipartFile attachment, String ip) {
     List<User> recipients = users.findAllById(request.userIds());
     if (recipients.size() != request.userIds().size())
       throw error(
@@ -55,11 +62,15 @@ public class EmailCampaignService {
           "Bir veya daha fazla alıcı bulunamadı.");
     UUID id = UUID.randomUUID();
     OffsetDateTime now = now();
+    byte[] attachmentData = attachmentBytes(attachment);
+    String attachmentName = attachment == null ? null : safeName(attachment.getOriginalFilename());
     jdbc.update(
-        "insert into email_campaigns(id,subject,body,status,created_by,created_at,updated_at,version)values(?,?,?,'DRAFT',?,?,?,0)",
+        "insert into email_campaigns(id,subject,body,attachment_name,attachment_data,status,created_by,created_at,updated_at,version)values(?,?,?,?,?,'DRAFT',?,?,?,0)",
         id,
         request.subject().trim(),
         request.body().trim(),
+        attachmentName,
+        attachmentData,
         actor,
         now,
         now);
@@ -207,5 +218,28 @@ public class EmailCampaignService {
 
   private OffsetDateTime now() {
     return OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
+  }
+
+  private byte[] attachmentBytes(MultipartFile attachment) {
+    if (attachment == null || attachment.isEmpty()) return null;
+    if (attachment.getSize() > 10 * 1024 * 1024)
+      throw error(
+          HttpStatus.PAYLOAD_TOO_LARGE,
+          "EMAIL_ATTACHMENT_TOO_LARGE",
+          "E-posta eki en fazla 10 MB olabilir.");
+    try {
+      return attachment.getBytes();
+    } catch (Exception exception) {
+      throw error(
+          HttpStatus.BAD_REQUEST,
+          "EMAIL_ATTACHMENT_READ_FAILED",
+          "E-posta eki okunamadı. Dosyayı yeniden seçin.");
+    }
+  }
+
+  private String safeName(String name) {
+    if (name == null || name.isBlank()) return "ek";
+    String value = name.replaceAll("[\\r\\n]", "").trim();
+    return value.length() > 255 ? value.substring(0, 255) : value;
   }
 }

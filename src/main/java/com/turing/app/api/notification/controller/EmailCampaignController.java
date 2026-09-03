@@ -8,8 +8,10 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.util.*;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/admin/email-campaigns")
@@ -37,6 +39,16 @@ public class EmailCampaignController {
       @Valid @RequestBody CampaignRequest body,
       HttpServletRequest request) {
     return service.create(user.id(), body, request.getRemoteAddr());
+  }
+
+  @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+  @ResponseStatus(HttpStatus.CREATED)
+  public CampaignDetail createWithAttachment(
+      @AuthenticationPrincipal AuthenticatedUser user,
+      @Valid @RequestPart("campaign") CampaignRequest body,
+      @RequestPart(value = "attachment", required = false) MultipartFile attachment,
+      HttpServletRequest request) {
+    return service.create(user.id(), body, attachment, request.getRemoteAddr());
   }
 
   @PostMapping("/{id}/send")

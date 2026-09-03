@@ -4,6 +4,7 @@ import com.turing.app.api.application.dto.*;
 import com.turing.app.api.application.entity.*;
 import com.turing.app.api.application.exception.ApplicationException;
 import com.turing.app.api.application.repository.*;
+import com.turing.app.api.audit.service.AuditService;
 import com.turing.app.api.document.service.DocumentPolicyService;
 import com.turing.app.api.profile.entity.StudentProfile;
 import com.turing.app.api.profile.repository.StudentProfileRepository;
@@ -32,6 +33,7 @@ public class ApplicationService {
   private final FormDefinitionRepository forms;
   private final UserRepository users;
   private final DocumentPolicyService documents;
+  private final AuditService audit;
   private final Clock clock;
 
   public ApplicationService(
@@ -44,6 +46,7 @@ public class ApplicationService {
       FormDefinitionRepository forms,
       UserRepository users,
       DocumentPolicyService documents,
+      AuditService audit,
       Clock clock) {
     this.applications = applications;
     this.answers = answers;
@@ -54,6 +57,7 @@ public class ApplicationService {
     this.forms = forms;
     this.users = users;
     this.documents = documents;
+    this.audit = audit;
     this.clock = clock;
   }
 
@@ -112,7 +116,7 @@ public class ApplicationService {
   @Transactional
   public ApplicationFormResponse saveAnswers(UUID userId, UUID id, AnswersUpdateRequest request) {
     Application app = findOwned(userId, id);
-    ensureDraftEditable(app, clock.instant());
+    ensureStudentEditable(app, clock.instant());
     checkVersion(app.getVersion(), request.version());
     Map<UUID, FormField> fields = fields(app.getForm());
     Set<UUID> seen = new HashSet<>();
@@ -137,11 +141,13 @@ public class ApplicationService {
   }
 
   @Transactional
-  public ApplicationResponse submit(UUID userId, UUID id, ApplicationVersionRequest request) {
+  public ApplicationResponse submit(
+      UUID userId, UUID id, ApplicationVersionRequest request, String ipAddress) {
     Application app = findOwned(userId, id);
     Instant now = clock.instant();
     boolean correction = app.getStatus() == ApplicationStatus.MISSING_DOCUMENT;
-    if (!correction) ensureDraftEditable(app, now);
+    boolean update = app.getStatus() == ApplicationStatus.SUBMITTED;
+    ensureStudentEditable(app, now);
     checkVersion(app.getVersion(), request.version());
     List<ApplicationAnswer> savedAnswers = answers.findByApplicationIdOrderByFieldId(id);
     Map<UUID, ApplicationAnswer> byField = new HashMap<>();
@@ -163,7 +169,17 @@ public class ApplicationService {
       throw bad(
           "REQUIRED_DOCUMENTS_MISSING",
           "Zorunlu belgeleri yükleyin: " + String.join(", ", missingDocuments));
-    if (correction) {
+    if (update) {
+      app.updated(now);
+      audit.record(
+          userId,
+          "APPLICATION_UPDATED_BY_STUDENT",
+          "APPLICATION",
+          app.getId(),
+          "{\"status\":\"SUBMITTED\"}",
+          "{\"status\":\"SUBMITTED\",\"answersAndDocumentsUpdated\":true}",
+          ipAddress);
+    } else if (correction) {
       app.resubmit(now);
     } else {
       if (snapshots.existsByApplicationId(id))
@@ -173,18 +189,20 @@ public class ApplicationService {
               app, app.getForm().getVersionNumber(), profileSnapshot(app.getProfile()), now));
       app.submit(now);
     }
-    ApplicationStatus old =
-        correction ? ApplicationStatus.MISSING_DOCUMENT : ApplicationStatus.DRAFT;
-    history.save(
-        ApplicationStatusHistory.create(
-            app,
-            old,
-            ApplicationStatus.SUBMITTED,
-            user(userId),
-            correction
-                ? "Eksik belgeler tamamlanarak başvuru yeniden gönderildi."
-                : "Başvuru gönderildi.",
-            now));
+    if (!update) {
+      ApplicationStatus old =
+          correction ? ApplicationStatus.MISSING_DOCUMENT : ApplicationStatus.DRAFT;
+      history.save(
+          ApplicationStatusHistory.create(
+              app,
+              old,
+              ApplicationStatus.SUBMITTED,
+              user(userId),
+              correction
+                  ? "Eksik belgeler tamamlanarak başvuru yeniden gönderildi."
+                  : "Başvuru gönderildi.",
+              now));
+    }
     applications.flush();
     return ApplicationResponse.from(app);
   }
@@ -347,10 +365,12 @@ public class ApplicationService {
       throw conflict("APPLICATION_PERIOD_CLOSED", "Başvuru dönemi açık değil.");
   }
 
-  private void ensureDraftEditable(Application app, Instant now) {
-    if (app.getStatus() != ApplicationStatus.DRAFT)
+  private void ensureStudentEditable(Application app, Instant now) {
+    if (app.getStatus() != ApplicationStatus.DRAFT
+        && app.getStatus() != ApplicationStatus.SUBMITTED
+        && app.getStatus() != ApplicationStatus.MISSING_DOCUMENT)
       throw conflict(
-          "APPLICATION_IMMUTABLE", "Gönderilmiş veya geri çekilmiş başvuru değiştirilemez.");
+          "APPLICATION_IMMUTABLE", "Sonuçlanmış veya geri çekilmiş başvuru değiştirilemez.");
     ensureOpen(app.getPeriod(), now);
   }
 

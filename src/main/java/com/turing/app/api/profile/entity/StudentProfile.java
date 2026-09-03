@@ -18,6 +18,9 @@ public class StudentProfile {
   @Column(name = "national_id_encrypted")
   private byte[] nationalIdEncrypted;
 
+  @Column(name = "national_id", length = 64)
+  private String nationalId;
+
   @Column(name = "birth_date")
   private LocalDate birthDate;
 
@@ -82,7 +85,7 @@ public class StudentProfile {
   }
 
   public void update(
-      byte[] nationalId,
+      String nationalId,
       LocalDate birthDate,
       String phone,
       String addressLine,
@@ -97,7 +100,8 @@ public class StudentProfile {
       Integer studyYear,
       BigDecimal gpa,
       Instant now) {
-    this.nationalIdEncrypted = nationalId;
+    this.nationalId = nationalId;
+    this.nationalIdEncrypted = null;
     this.birthDate = birthDate;
     this.phone = phone;
     this.addressLine = addressLine;
@@ -124,6 +128,10 @@ public class StudentProfile {
 
   public byte[] getNationalIdEncrypted() {
     return nationalIdEncrypted;
+  }
+
+  public String getNationalId() {
+    return nationalId;
   }
 
   public LocalDate getBirthDate() {

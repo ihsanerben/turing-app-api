@@ -24,9 +24,4 @@ public class PublicContentController {
   public PublicAnnouncement announcement(@PathVariable String slug) {
     return service.publicAnnouncement(slug);
   }
-
-  @GetMapping("/faq")
-  public List<PublicFaq> faqs() {
-    return service.publicFaqs();
-  }
 }

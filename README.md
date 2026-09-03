@@ -9,19 +9,17 @@ Spring Boot tabanlı backend uygulaması.
 
 ## Çalıştırma
 
-Tüm sistemi (PostgreSQL, MinIO, Mailpit, API ve web) kaldırmak için frontend reposunu
-bu repo ile aynı üst dizinde tutun ve çalıştırın:
-
-```bash
-docker compose up --build
-```
-
-Yalnız altyapıyı başlatıp backend'i host üzerinde çalıştırmak için:
+Docker Compose yalnız PostgreSQL, MinIO ve Mailpit altyapısını çalıştırır. Backend ve frontend
+host üzerinde manuel başlatılır:
 
 ```bash
 docker compose up -d postgres minio mailpit
-./mvnw spring-boot:run -Dspring-boot.run.profiles=local
+cp .env.example .env # yalnız ilk kurulumda
+./run.sh
 ```
+
+`run.sh`, Git'e girmeyen `.env` dosyasını yükler ve zorunlu değerleri doğrular. Frontend yan
+repoda `npm run dev` ile çalışır.
 
 Servisler:
 

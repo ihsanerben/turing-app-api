@@ -34,6 +34,11 @@ public class InterviewController {
     return service.byApplication(applicationId);
   }
 
+  @GetMapping("/api/admin/interviews")
+  public List<AdminInterviewResponse> all() {
+    return service.all();
+  }
+
   @PostMapping("/api/admin/applications/{applicationId}/interviews")
   @ResponseStatus(HttpStatus.CREATED)
   public AdminInterviewResponse create(
@@ -42,6 +47,15 @@ public class InterviewController {
       @Valid @RequestBody InterviewRequest body,
       HttpServletRequest request) {
     return service.create(user.id(), applicationId, body, request.getRemoteAddr());
+  }
+
+  @PostMapping("/api/admin/interviews/bulk")
+  @ResponseStatus(HttpStatus.CREATED)
+  public List<AdminInterviewResponse> createBulk(
+      @AuthenticationPrincipal AuthenticatedUser user,
+      @Valid @RequestBody BulkInterviewRequest body,
+      HttpServletRequest request) {
+    return service.createBulk(user.id(), body, request.getRemoteAddr());
   }
 
   @PutMapping("/api/admin/interviews/{id}")

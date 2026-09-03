@@ -10,7 +10,6 @@ import com.turing.app.api.user.entity.User;
 import com.turing.app.api.user.repository.UserRepository;
 import java.time.*;
 import java.util.*;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,7 +18,6 @@ import tools.jackson.databind.ObjectMapper;
 @Service
 public class ContentService {
   private final AnnouncementRepository announcements;
-  private final FaqItemRepository faqs;
   private final UserRepository users;
   private final AuditService audit;
   private final ObjectMapper json;
@@ -27,13 +25,11 @@ public class ContentService {
 
   public ContentService(
       AnnouncementRepository announcements,
-      FaqItemRepository faqs,
       UserRepository users,
       AuditService audit,
       ObjectMapper json,
       Clock clock) {
     this.announcements = announcements;
-    this.faqs = faqs;
     this.users = users;
     this.audit = audit;
     this.json = json;
@@ -112,6 +108,29 @@ public class ContentService {
     return AnnouncementResponse.from(value);
   }
 
+  @Transactional
+  public AnnouncementResponse restoreAnnouncement(UUID actorId, UUID id, long supplied, String ip) {
+    Announcement value = announcement(id);
+    version(value.getVersion(), supplied);
+    if (value.getStatus() != AnnouncementStatus.ARCHIVED)
+      throw conflict("ANNOUNCEMENT_NOT_ARCHIVED", "Yalnız arşivdeki duyuru geri alınabilir.");
+    String old = snapshot(value);
+    value.restore(clock.instant());
+    announcements.flush();
+    audit.record(actorId, "ANNOUNCEMENT_RESTORED", "ANNOUNCEMENT", id, old, snapshot(value), ip);
+    return AnnouncementResponse.from(value);
+  }
+
+  @Transactional
+  public void deleteAnnouncement(UUID actorId, UUID id, long supplied, String ip) {
+    Announcement value = announcement(id);
+    version(value.getVersion(), supplied);
+    String old = snapshot(value);
+    announcements.delete(value);
+    announcements.flush();
+    audit.record(actorId, "ANNOUNCEMENT_DELETED", "ANNOUNCEMENT", id, old, "{}", ip);
+  }
+
   @Transactional(readOnly = true)
   public List<AnnouncementSummary> publicAnnouncements() {
     return announcements.findByStatusOrderByPublishedAtDesc(AnnouncementStatus.PUBLISHED).stream()
@@ -132,58 +151,6 @@ public class ContentService {
         v.getId(), v.getTitle(), v.getSlug(), v.getSummary(), v.getContent(), v.getPublishedAt());
   }
 
-  @Transactional(readOnly = true)
-  public List<FaqResponse> adminFaqs() {
-    return faqs.findAllByOrderByDisplayOrderAsc().stream().map(FaqResponse::from).toList();
-  }
-
-  @Transactional(readOnly = true)
-  public List<PublicFaq> publicFaqs() {
-    return faqs.findByActiveTrueOrderByDisplayOrderAsc().stream()
-        .map(v -> new PublicFaq(v.getId(), v.getQuestion(), v.getAnswer(), v.getDisplayOrder()))
-        .toList();
-  }
-
-  @Transactional
-  public FaqResponse createFaq(UUID actorId, FaqRequest r, String ip) {
-    uniqueOrder(r.displayOrder(), null);
-    try {
-      FaqItem value =
-          faqs.saveAndFlush(
-              FaqItem.create(
-                  clean(r.question()), clean(r.answer()), r.displayOrder(), clock.instant()));
-      audit.record(actorId, "FAQ_CREATED", "FAQ_ITEM", value.getId(), "{}", faqSnapshot(value), ip);
-      return FaqResponse.from(value);
-    } catch (DataIntegrityViolationException e) {
-      throw conflict("FAQ_ORDER_EXISTS", "Bu SSS sırası zaten kullanılıyor.");
-    }
-  }
-
-  @Transactional
-  public FaqResponse updateFaq(UUID actorId, UUID id, FaqRequest r, String ip) {
-    FaqItem value = faq(id);
-    version(value.getVersion(), r.version());
-    if (!value.isActive()) throw conflict("FAQ_ARCHIVED", "Arşivlenmiş SSS düzenlenemez.");
-    uniqueOrder(r.displayOrder(), id);
-    String old = faqSnapshot(value);
-    value.update(clean(r.question()), clean(r.answer()), r.displayOrder(), clock.instant());
-    faqs.flush();
-    audit.record(actorId, "FAQ_UPDATED", "FAQ_ITEM", id, old, faqSnapshot(value), ip);
-    return FaqResponse.from(value);
-  }
-
-  @Transactional
-  public FaqResponse archiveFaq(UUID actorId, UUID id, long supplied, String ip) {
-    FaqItem value = faq(id);
-    version(value.getVersion(), supplied);
-    if (!value.isActive()) throw conflict("FAQ_ARCHIVED", "SSS zaten arşivlenmiş.");
-    String old = faqSnapshot(value);
-    value.archive(clock.instant());
-    faqs.flush();
-    audit.record(actorId, "FAQ_ARCHIVED", "FAQ_ITEM", id, old, faqSnapshot(value), ip);
-    return FaqResponse.from(value);
-  }
-
   private void uniqueSlug(String slug, UUID id) {
     announcements
         .findBySlugIgnoreCase(slug)
@@ -194,23 +161,10 @@ public class ContentService {
             });
   }
 
-  private void uniqueOrder(int order, UUID id) {
-    faqs.findByDisplayOrder(order)
-        .filter(v -> !v.getId().equals(id))
-        .ifPresent(
-            v -> {
-              throw conflict("FAQ_ORDER_EXISTS", "Bu SSS sırası zaten kullanılıyor.");
-            });
-  }
-
   private Announcement announcement(UUID id) {
     return announcements
         .findById(id)
         .orElseThrow(() -> notFound("ANNOUNCEMENT_NOT_FOUND", "Duyuru bulunamadı."));
-  }
-
-  private FaqItem faq(UUID id) {
-    return faqs.findById(id).orElseThrow(() -> notFound("FAQ_NOT_FOUND", "SSS kaydı bulunamadı."));
   }
 
   private User user(UUID id) {
@@ -238,17 +192,6 @@ public class ContentService {
             v.getSlug(),
             "status",
             v.getStatus(),
-            "version",
-            v.getVersion()));
-  }
-
-  private String faqSnapshot(FaqItem v) {
-    return json.writeValueAsString(
-        Map.of(
-            "displayOrder",
-            v.getDisplayOrder(),
-            "active",
-            v.isActive(),
             "version",
             v.getVersion()));
   }

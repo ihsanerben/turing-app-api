@@ -24,12 +24,13 @@ public class AdminApplicationController {
   public PageResponse<Summary> list(
       @RequestParam(required = false) String search,
       @RequestParam(required = false) UUID periodId,
+      @RequestParam(required = false) UUID programId,
       @RequestParam(required = false) ApplicationStatus status,
       @RequestParam(defaultValue = "0") int page,
       @RequestParam(defaultValue = "20") int size,
       @RequestParam(defaultValue = "createdAt") String sort,
       @RequestParam(defaultValue = "desc") String direction) {
-    return service.list(search, periodId, status, page, size, sort, direction);
+    return service.list(search, periodId, programId, status, page, size, sort, direction);
   }
 
   @GetMapping("/{id}")
@@ -37,14 +38,13 @@ public class AdminApplicationController {
     return service.detail(id);
   }
 
-  @PostMapping("/{id}/notes")
-  @ResponseStatus(HttpStatus.CREATED)
+  @PutMapping("/{id}/note")
   public Note note(
       @AuthenticationPrincipal AuthenticatedUser user,
       @PathVariable UUID id,
       @Valid @RequestBody NoteRequest body,
       HttpServletRequest request) {
-    return service.addNote(user.id(), id, body, request.getRemoteAddr());
+    return service.saveNote(user.id(), id, body, request.getRemoteAddr());
   }
 
   @PatchMapping("/{id}/status")

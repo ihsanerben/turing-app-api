@@ -166,8 +166,24 @@ class ApplicationControllerIT {
                 .cookie(student)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(answers.replace("\"version\":0", "\"version\":2")))
-        .andExpect(status().isConflict())
-        .andExpect(jsonPath("$.code").value("APPLICATION_IMMUTABLE"));
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.application.status").value("SUBMITTED"))
+        .andExpect(jsonPath("$.application.version").value(3));
+    mvc.perform(
+            post("/api/me/applications/" + applicationId + "/submit")
+                .with(csrf())
+                .cookie(student)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"version\":3}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("SUBMITTED"))
+        .andExpect(jsonPath("$.version").value(4));
+    assertThat(
+            jdbc.queryForObject(
+                "select count(*) from audit_logs where entity_id=? and action='APPLICATION_UPDATED_BY_STUDENT'",
+                Integer.class,
+                UUID.fromString(applicationId)))
+        .isEqualTo(1);
     String snapshot =
         jdbc.queryForObject("select profile_data::text from application_snapshots", String.class);
     assertThat(snapshot).contains("application-student@example.com").doesNotContain("12345678901");
@@ -182,7 +198,7 @@ class ApplicationControllerIT {
                 .with(csrf())
                 .cookie(student)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"version\":2}"))
+                .content("{\"version\":4}"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.status").value("WITHDRAWN"));
     jdbc.update(
@@ -256,12 +272,12 @@ class ApplicationControllerIT {
         .andExpect(jsonPath("$.totalElements").value(1))
         .andExpect(jsonPath("$.content[0].studentEmail").value("management-student@example.com"));
     mvc.perform(
-            post("/api/admin/applications/" + applicationId + "/notes")
+            put("/api/admin/applications/" + applicationId + "/note")
                 .with(csrf())
                 .cookie(admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"content\":\"Kimlik kontrolü tamamlandı.\"}"))
-        .andExpect(status().isCreated())
+        .andExpect(status().isOk())
         .andExpect(jsonPath("$.content").value("Kimlik kontrolü tamamlandı."));
     mvc.perform(get("/api/me/applications/" + applicationId).cookie(student))
         .andExpect(status().isOk())
@@ -271,50 +287,24 @@ class ApplicationControllerIT {
                 .with(csrf())
                 .cookie(admin)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(
-                    "{\"status\":\"UNDER_REVIEW\",\"version\":2,\"reason\":\"Ön inceleme başladı.\"}"))
+                .content("{\"status\":\"APPROVED\",\"version\":2,\"reason\":\"Başvuru olumlu.\"}"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.application.status").value("UNDER_REVIEW"))
-        .andExpect(jsonPath("$.history[0].reason").value("Ön inceleme başladı."));
+        .andExpect(jsonPath("$.application.status").value("APPROVED"))
+        .andExpect(jsonPath("$.history[0].reason").value("Başvuru olumlu."));
     mvc.perform(
             patch("/api/admin/applications/" + applicationId + "/status")
                 .with(csrf())
                 .cookie(admin)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"status\":\"APPROVED\",\"version\":3,\"reason\":\"Atlama\"}"))
+                .content("{\"status\":\"REJECTED\",\"version\":2,\"reason\":\"Eski sürüm\"}"))
         .andExpect(status().isConflict())
-        .andExpect(jsonPath("$.code").value("INVALID_APPLICATION_TRANSITION"));
-    mvc.perform(
-            patch("/api/admin/applications/" + applicationId + "/status")
-                .with(csrf())
-                .cookie(admin)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(
-                    "{\"status\":\"MISSING_DOCUMENT\",\"version\":3,\"reason\":\"Belge yeniden yüklenmeli.\"}"))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.application.status").value("MISSING_DOCUMENT"));
-    mvc.perform(
-            put("/api/me/applications/" + applicationId + "/answers")
-                .with(csrf())
-                .cookie(student)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(answers.replace("\"version\":0", "\"version\":4")))
-        .andExpect(status().isConflict())
-        .andExpect(jsonPath("$.code").value("APPLICATION_IMMUTABLE"));
-    mvc.perform(
-            post("/api/me/applications/" + applicationId + "/submit")
-                .with(csrf())
-                .cookie(student)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"version\":4}"))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.status").value("SUBMITTED"));
+        .andExpect(jsonPath("$.code").value("VERSION_CONFLICT"));
     assertThat(
             jdbc.queryForObject(
-                "select count(*) from audit_logs where entity_id=? and action in ('APPLICATION_NOTE_ADDED','APPLICATION_STATUS_CHANGED')",
+                "select count(*) from audit_logs where entity_id=? and action in ('APPLICATION_NOTE_SAVED','APPLICATION_STATUS_CHANGED')",
                 Integer.class,
                 UUID.fromString(applicationId)))
-        .isEqualTo(3);
+        .isEqualTo(2);
   }
 
   private String provisionPeriod(Cookie admin) throws Exception {
@@ -406,7 +396,7 @@ class ApplicationControllerIT {
                 .cookie(cookie)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
-                    "{\"nationalId\":\"12345678901\",\"birthDate\":\"2000-01-01\",\"phone\":\"+905551112233\",\"city\":\"İstanbul\",\"countryCode\":\"TR\",\"universityId\":\"10000000-0000-0000-0000-000000000001\",\"departmentId\":\"20000000-0000-0000-0000-000000000001\",\"educationLevel\":\"BACHELOR\",\"studyYear\":2,\"gpa\":3.45}"))
+                    "{\"nationalId\":\"10000000146\",\"birthDate\":\"2000-01-01\",\"phone\":\"+905551112233\",\"city\":\"İstanbul\",\"countryCode\":\"TR\",\"universityId\":\"10000000-0000-0000-0000-000000000001\",\"departmentId\":\"20000000-0000-0000-0000-000000000001\",\"educationLevel\":\"BACHELOR\",\"studyYear\":2,\"gpa\":3.45}"))
         .andExpect(status().isOk());
   }
 

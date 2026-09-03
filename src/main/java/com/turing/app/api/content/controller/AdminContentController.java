@@ -66,35 +66,22 @@ public class AdminContentController {
     return service.archiveAnnouncement(user.id(), id, body.version(), request.getRemoteAddr());
   }
 
-  @GetMapping("/faq-items")
-  public List<FaqResponse> faqs() {
-    return service.adminFaqs();
-  }
-
-  @PostMapping("/faq-items")
-  @ResponseStatus(HttpStatus.CREATED)
-  public FaqResponse createFaq(
-      @AuthenticationPrincipal AuthenticatedUser user,
-      @Valid @RequestBody FaqRequest body,
-      HttpServletRequest request) {
-    return service.createFaq(user.id(), body, request.getRemoteAddr());
-  }
-
-  @PutMapping("/faq-items/{id}")
-  public FaqResponse updateFaq(
-      @AuthenticationPrincipal AuthenticatedUser user,
-      @PathVariable UUID id,
-      @Valid @RequestBody FaqRequest body,
-      HttpServletRequest request) {
-    return service.updateFaq(user.id(), id, body, request.getRemoteAddr());
-  }
-
-  @PostMapping("/faq-items/{id}/archive")
-  public FaqResponse archiveFaq(
+  @PostMapping("/announcements/{id}/restore")
+  public AnnouncementResponse restoreAnnouncement(
       @AuthenticationPrincipal AuthenticatedUser user,
       @PathVariable UUID id,
       @Valid @RequestBody VersionRequest body,
       HttpServletRequest request) {
-    return service.archiveFaq(user.id(), id, body.version(), request.getRemoteAddr());
+    return service.restoreAnnouncement(user.id(), id, body.version(), request.getRemoteAddr());
+  }
+
+  @DeleteMapping("/announcements/{id}")
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  public void deleteAnnouncement(
+      @AuthenticationPrincipal AuthenticatedUser user,
+      @PathVariable UUID id,
+      @RequestParam long version,
+      HttpServletRequest request) {
+    service.deleteAnnouncement(user.id(), id, version, request.getRemoteAddr());
   }
 }
