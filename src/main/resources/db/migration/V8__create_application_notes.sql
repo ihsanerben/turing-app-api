@@ -6,6 +6,7 @@ CREATE TABLE application_notes (
     visibility varchar(16) NOT NULL DEFAULT 'INTERNAL' CHECK (visibility = 'INTERNAL'),
     created_at timestamptz NOT NULL,
     updated_at timestamptz NOT NULL,
-    version bigint NOT NULL DEFAULT 0
+    version bigint NOT NULL DEFAULT 0,
+    CONSTRAINT uk_application_notes_application UNIQUE (application_id)
 );
 CREATE INDEX idx_application_notes_application_created ON application_notes(application_id, created_at DESC);

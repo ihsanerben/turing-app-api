@@ -71,7 +71,7 @@ class AppConfigControllerIT {
     mvc.perform(get("/api/admin/app-config")).andExpect(status().isUnauthorized());
     mvc.perform(get("/api/admin/app-config").with(admin()))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.version").value(1));
+        .andExpect(jsonPath("$.version").value(0));
   }
 
   @Test
@@ -89,7 +89,7 @@ class AppConfigControllerIT {
           "footerText": "Turing Bursları",
           "maintenanceNoticeEnabled": true,
           "maintenanceNotice": "Planlı bakım cumartesi günü yapılacaktır.",
-          "version": 1
+          "version": 0
         }
         """;
 
@@ -101,7 +101,7 @@ class AppConfigControllerIT {
                 .content(body))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.applicationName").value("Turing Bursları"))
-        .andExpect(jsonPath("$.version").value(2));
+        .andExpect(jsonPath("$.version").value(1));
 
     mvc.perform(
             put("/api/admin/app-config")

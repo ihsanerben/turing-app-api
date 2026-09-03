@@ -29,7 +29,7 @@ CREATE TABLE application_periods (
     CONSTRAINT ck_period_dates CHECK (ends_at > starts_at),
     CONSTRAINT ck_period_academic_year CHECK (academic_year ~ '^[0-9]{4}-[0-9]{4}$'),
     CONSTRAINT ck_period_max_recipients CHECK (max_recipients IS NULL OR max_recipients > 0),
-    CONSTRAINT ck_period_status CHECK (status IN ('DRAFT','SCHEDULED','OPEN','CLOSED','EVALUATION','COMPLETED','ARCHIVED'))
+    CONSTRAINT ck_period_status CHECK (status IN ('DRAFT','SCHEDULED','OPEN','CLOSED','COMPLETED','ARCHIVED'))
 );
 CREATE INDEX idx_period_program_status ON application_periods (program_id, status);
 CREATE INDEX idx_period_status_time ON application_periods (status, starts_at, ends_at);

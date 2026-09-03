@@ -23,10 +23,10 @@ INSERT INTO app_config (
     id, application_name, tagline, primary_color, support_email, footer_text, updated_at
 ) VALUES (
     '00000000-0000-0000-0000-000000000001',
-    'Turing Scholarship',
-    'Potansiyelini geleceğe taşı.',
+    'Turing Otomobil Kurumu',
+    'Eğitime destek, geleceğe yatırım.',
     '#3855CF',
     'info@turing.local',
-    'Turing Scholarship',
+    'Turing Otomobil Kurumu',
     CURRENT_TIMESTAMP
 );

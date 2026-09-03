@@ -15,16 +15,3 @@ CREATE TABLE announcements (
     CONSTRAINT ck_announcements_publish CHECK ((status='PUBLISHED' AND published_at IS NOT NULL) OR status<>'PUBLISHED')
 );
 CREATE INDEX idx_announcements_public ON announcements(status,published_at DESC);
-
-CREATE TABLE faq_items (
-    id uuid PRIMARY KEY,
-    question varchar(500) NOT NULL,
-    answer text NOT NULL,
-    display_order integer NOT NULL CHECK (display_order >= 0),
-    active boolean NOT NULL DEFAULT true,
-    created_at timestamptz NOT NULL,
-    updated_at timestamptz NOT NULL,
-    version bigint NOT NULL DEFAULT 0,
-    CONSTRAINT uk_faq_items_order UNIQUE (display_order)
-);
-CREATE INDEX idx_faq_items_public ON faq_items(active,display_order);
