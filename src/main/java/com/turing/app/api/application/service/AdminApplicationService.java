@@ -23,9 +23,15 @@ public class AdminApplicationService {
   private static final Map<ApplicationStatus, Set<ApplicationStatus>> TRANSITIONS =
       Map.of(
           ApplicationStatus.SUBMITTED,
-              Set.of(ApplicationStatus.APPROVED, ApplicationStatus.REJECTED),
+              Set.of(
+                  ApplicationStatus.MISSING_DOCUMENT,
+                  ApplicationStatus.APPROVED,
+                  ApplicationStatus.REJECTED),
           ApplicationStatus.MISSING_DOCUMENT,
-              Set.of(ApplicationStatus.APPROVED, ApplicationStatus.REJECTED),
+              Set.of(
+                  ApplicationStatus.SUBMITTED,
+                  ApplicationStatus.APPROVED,
+                  ApplicationStatus.REJECTED),
           ApplicationStatus.UNDER_REVIEW,
               Set.of(ApplicationStatus.APPROVED, ApplicationStatus.REJECTED),
           ApplicationStatus.SHORTLISTED,
@@ -97,7 +103,7 @@ public class AdminApplicationService {
           if (periodId != null) values.add(cb.equal(root.get("period").get("id"), periodId));
           if (programId != null)
             values.add(cb.equal(root.get("period").get("program").get("id"), programId));
-          if (status != null) values.add(cb.equal(root.get("status"), status));
+          if (status != null) values.add(root.get("status").in(statusGroup(status)));
           if (search != null && !search.isBlank()) {
             String q = "%" + search.trim().toLowerCase(Locale.ROOT) + "%";
             values.add(
@@ -116,6 +122,21 @@ public class AdminApplicationService {
         size,
         result.getTotalElements(),
         result.getTotalPages());
+  }
+
+  private Set<ApplicationStatus> statusGroup(ApplicationStatus status) {
+    return switch (status) {
+      case SUBMITTED ->
+          Set.of(
+              ApplicationStatus.DRAFT,
+              ApplicationStatus.SUBMITTED,
+              ApplicationStatus.UNDER_REVIEW,
+              ApplicationStatus.SHORTLISTED,
+              ApplicationStatus.INTERVIEW,
+              ApplicationStatus.WAITLISTED);
+      case REJECTED -> Set.of(ApplicationStatus.REJECTED, ApplicationStatus.WITHDRAWN);
+      default -> Set.of(status);
+    };
   }
 
   @Transactional(readOnly = true)

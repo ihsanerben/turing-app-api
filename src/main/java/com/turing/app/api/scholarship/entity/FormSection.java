@@ -51,9 +51,16 @@ public class FormSection {
     return section;
   }
 
-  void attach(FormDefinition value) {
+  public void attach(FormDefinition value) {
     form = value;
     fields.forEach(field -> field.attachForm(value));
+  }
+
+  public void update(String title, String description, int order, Instant now) {
+    this.title = title;
+    this.description = description;
+    this.displayOrder = order;
+    this.updatedAt = now;
   }
 
   public UUID getId() {

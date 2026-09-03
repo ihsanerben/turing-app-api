@@ -88,12 +88,33 @@ public class FormField {
     return field;
   }
 
-  void attach(FormSection value) {
+  public void attach(FormSection value) {
     section = value;
   }
 
-  void attachForm(FormDefinition value) {
+  public void attachForm(FormDefinition value) {
     form = value;
+  }
+
+  public void update(
+      String key,
+      String label,
+      FormFieldType type,
+      boolean required,
+      int order,
+      String placeholder,
+      UUID requirementId,
+      Map<String, Object> rules,
+      Instant now) {
+    this.key = key;
+    this.label = label;
+    this.type = type;
+    this.required = required;
+    this.displayOrder = order;
+    this.placeholder = placeholder;
+    this.requirementId = requirementId;
+    this.validationRules = new LinkedHashMap<>(rules);
+    this.updatedAt = now;
   }
 
   public UUID getId() {

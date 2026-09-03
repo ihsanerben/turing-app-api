@@ -28,7 +28,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class DocumentService {
   private static final Logger log = LoggerFactory.getLogger(DocumentService.class);
   private static final Set<PeriodStatus> CONFIGURABLE =
-      Set.of(PeriodStatus.DRAFT, PeriodStatus.SCHEDULED);
+      Set.of(PeriodStatus.DRAFT, PeriodStatus.SCHEDULED, PeriodStatus.OPEN);
   private final DocumentRequirementRepository requirements;
   private final StoredFileRepository files;
   private final ApplicationRepository applications;
@@ -69,7 +69,7 @@ public class DocumentService {
     if (!CONFIGURABLE.contains(period.getStatus()))
       throw conflict(
           "REQUIREMENTS_LOCKED",
-          "Belge gereksinimleri yalnız taslak veya planlanmış dönemde değiştirilebilir.");
+          "Belge gereksinimleri yalnız taslak, planlanmış veya açık programda değiştirilebilir.");
     if (requirements.existsByPeriodIdAndNameIgnoreCase(periodId, request.name().trim()))
       throw conflict("REQUIREMENT_ALREADY_EXISTS", "Bu belge gereksinimi zaten var.");
     List<String> mime = request.allowedMimeTypes().stream().distinct().toList();
@@ -293,7 +293,7 @@ public class DocumentService {
     if (!CONFIGURABLE.contains(period.getStatus()))
       throw conflict(
           "REQUIREMENTS_LOCKED",
-          "Belgeler yalnız taslak veya planlanmış programlarda değiştirilebilir.");
+          "Belgeler yalnız taslak, planlanmış veya açık programda değiştirilebilir.");
   }
 
   private ObjectStorage storage() {

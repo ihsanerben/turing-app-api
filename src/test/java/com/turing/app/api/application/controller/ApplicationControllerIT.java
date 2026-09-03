@@ -287,7 +287,25 @@ class ApplicationControllerIT {
                 .with(csrf())
                 .cookie(admin)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"status\":\"APPROVED\",\"version\":2,\"reason\":\"Başvuru olumlu.\"}"))
+                .content(
+                    "{\"status\":\"MISSING_DOCUMENT\",\"version\":2,\"reason\":\"Belge eksik.\"}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.application.status").value("MISSING_DOCUMENT"));
+    mvc.perform(
+            patch("/api/admin/applications/" + applicationId + "/status")
+                .with(csrf())
+                .cookie(admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    "{\"status\":\"SUBMITTED\",\"version\":3,\"reason\":\"Belge tamamlandı.\"}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.application.status").value("SUBMITTED"));
+    mvc.perform(
+            patch("/api/admin/applications/" + applicationId + "/status")
+                .with(csrf())
+                .cookie(admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"status\":\"APPROVED\",\"version\":4,\"reason\":\"Başvuru olumlu.\"}"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.application.status").value("APPROVED"))
         .andExpect(jsonPath("$.history[0].reason").value("Başvuru olumlu."));
@@ -296,7 +314,7 @@ class ApplicationControllerIT {
                 .with(csrf())
                 .cookie(admin)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"status\":\"REJECTED\",\"version\":2,\"reason\":\"Eski sürüm\"}"))
+                .content("{\"status\":\"REJECTED\",\"version\":4,\"reason\":\"Eski sürüm\"}"))
         .andExpect(status().isConflict())
         .andExpect(jsonPath("$.code").value("VERSION_CONFLICT"));
     assertThat(
@@ -304,7 +322,7 @@ class ApplicationControllerIT {
                 "select count(*) from audit_logs where entity_id=? and action in ('APPLICATION_NOTE_SAVED','APPLICATION_STATUS_CHANGED')",
                 Integer.class,
                 UUID.fromString(applicationId)))
-        .isEqualTo(2);
+        .isEqualTo(4);
   }
 
   private String provisionPeriod(Cookie admin) throws Exception {

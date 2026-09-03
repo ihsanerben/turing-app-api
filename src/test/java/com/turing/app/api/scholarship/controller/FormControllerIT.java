@@ -39,7 +39,7 @@ class FormControllerIT {
   @Autowired JdbcTemplate jdbc;
 
   @Test
-  void versionsFormSchemaAndKeepsPublishedVersionsImmutable() throws Exception {
+  void versionsFormSchemaAndAllowsPublishedSchemaUpdates() throws Exception {
     Cookie access = adminSession();
     String programId =
         JsonPath.read(
@@ -70,7 +70,7 @@ class FormControllerIT {
             {"programId":"%s","name":"2027 Başvuruları","academicYear":"2027-2028","startsAt":"%s","endsAt":"%s","maxRecipients":10,"allowWithdrawal":true}
             """
                                 .formatted(
-                                    programId, now.plusSeconds(86400), now.plusSeconds(172800))))
+                                    programId, now.minusSeconds(60), now.plusSeconds(172800))))
                 .andExpect(status().isCreated())
                 .andReturn()
                 .getResponse()
@@ -96,15 +96,21 @@ class FormControllerIT {
               {"key":"housing","label":"Barınma şekli","type":"SELECT","required":true,"placeholder":null,"validationRules":{},"options":[{"label":"Yurt","value":"dorm"},{"label":"Aile yanı","value":"family"}]}
             ]}]}
             """;
-    mvc.perform(
-            put("/api/admin/forms/" + formId + "/schema")
-                .with(csrf())
-                .cookie(access)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(schema))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.version").value(1))
-        .andExpect(jsonPath("$.sections[0].fields[1].options[0].value").value("dorm"));
+    MvcResult schemaSaved =
+        mvc.perform(
+                put("/api/admin/forms/" + formId + "/schema")
+                    .with(csrf())
+                    .cookie(access)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(schema))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.version").value(1))
+            .andExpect(jsonPath("$.sections[0].fields[1].options[0].value").value("dorm"))
+            .andReturn();
+    String sectionId =
+        JsonPath.read(schemaSaved.getResponse().getContentAsString(), "$.sections[0].id");
+    String fieldId =
+        JsonPath.read(schemaSaved.getResponse().getContentAsString(), "$.sections[0].fields[0].id");
     mvc.perform(
             post("/api/admin/forms/" + formId + "/publish")
                 .with(csrf())
@@ -115,13 +121,29 @@ class FormControllerIT {
         .andExpect(jsonPath("$.status").value("PUBLISHED"))
         .andExpect(jsonPath("$.version").value(2));
     mvc.perform(
+            patch("/api/admin/application-periods/" + periodId + "/status")
+                .with(csrf())
+                .cookie(access)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"version\":0,\"status\":\"OPEN\"}"))
+        .andExpect(status().isOk());
+    mvc.perform(
             put("/api/admin/forms/" + formId + "/schema")
                 .with(csrf())
                 .cookie(access)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(schema.replace("\"version\":0", "\"version\":2")))
-        .andExpect(status().isConflict())
-        .andExpect(jsonPath("$.code").value("FORM_IMMUTABLE"));
+                .content(
+                    """
+                    {"version":2,"name":"Güncel Başvuru Formu","sections":[{"id":"%s","title":"Ekonomik Bilgiler","description":"Güncel durum","fields":[
+                      {"id":"%s","key":"family_income","label":"Güncel aile geliri","type":"DECIMAL","required":true,"placeholder":"Aylık gelir","validationRules":{"min":0},"options":[]}
+                    ]}]}
+                    """
+                        .formatted(sectionId, fieldId)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("PUBLISHED"))
+        .andExpect(jsonPath("$.sections[0].fields[0].id").value(fieldId))
+        .andExpect(jsonPath("$.sections[0].fields[0].label").value("Güncel aile geliri"))
+        .andExpect(jsonPath("$.version").value(3));
 
     MvcResult copied =
         mvc.perform(
@@ -129,7 +151,7 @@ class FormControllerIT {
                     .with(csrf())
                     .cookie(access)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"version\":2}"))
+                    .content("{\"version\":3}"))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.versionNumber").value(2))
             .andExpect(jsonPath("$.status").value("DRAFT"))
@@ -141,7 +163,7 @@ class FormControllerIT {
                 .with(csrf())
                 .cookie(access)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"version\":2}"))
+                .content("{\"version\":3}"))
         .andExpect(status().isConflict())
         .andExpect(jsonPath("$.code").value("FORM_DRAFT_ALREADY_EXISTS"));
     mvc.perform(
@@ -159,7 +181,7 @@ class FormControllerIT {
     mvc.perform(get("/api/admin/forms/" + formId)).andExpect(status().isUnauthorized());
     org.assertj.core.api.Assertions.assertThat(
             jdbc.queryForObject("select count(*) from form_fields", Integer.class))
-        .isEqualTo(4);
+        .isEqualTo(2);
   }
 
   private Cookie adminSession() throws Exception {

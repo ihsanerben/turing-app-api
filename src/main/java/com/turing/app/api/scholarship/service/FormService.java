@@ -1,5 +1,6 @@
 package com.turing.app.api.scholarship.service;
 
+import com.turing.app.api.application.repository.ApplicationAnswerRepository;
 import com.turing.app.api.audit.service.AuditService;
 import com.turing.app.api.document.repository.DocumentRequirementRepository;
 import com.turing.app.api.scholarship.dto.*;
@@ -22,10 +23,11 @@ public class FormService {
   private static final Set<String> RULES =
       Set.of("minLength", "maxLength", "min", "max", "pattern");
   private static final Set<PeriodStatus> CONFIGURABLE_PERIODS =
-      Set.of(PeriodStatus.DRAFT, PeriodStatus.SCHEDULED);
+      Set.of(PeriodStatus.DRAFT, PeriodStatus.SCHEDULED, PeriodStatus.OPEN);
   private final FormDefinitionRepository forms;
   private final ApplicationPeriodRepository periods;
   private final DocumentRequirementRepository requirements;
+  private final ApplicationAnswerRepository answers;
   private final AuditService audit;
   private final ObjectMapper json;
   private final Clock clock;
@@ -34,12 +36,14 @@ public class FormService {
       FormDefinitionRepository forms,
       ApplicationPeriodRepository periods,
       DocumentRequirementRepository requirements,
+      ApplicationAnswerRepository answers,
       AuditService audit,
       ObjectMapper json,
       Clock clock) {
     this.forms = forms;
     this.periods = periods;
     this.requirements = requirements;
+    this.answers = answers;
     this.audit = audit;
     this.json = json;
     this.clock = clock;
@@ -76,12 +80,12 @@ public class FormService {
   @Transactional
   public FormResponse saveSchema(UUID actor, UUID id, FormSchemaRequest request, String ip) {
     FormDefinition form = findForm(id);
-    ensureDraft(form);
+    ensureEditable(form);
     ensureConfigurable(form.getPeriod());
     checkVersion(form.getVersion(), request.version());
     validateSchema(form.getPeriod().getId(), request.sections());
     String before = snapshot(form);
-    form.replaceSchema(request.name().trim(), toSections(request.sections()), clock.instant());
+    updateSchema(form, request);
     forms.flush();
     audit.record(actor, "FORM_SCHEMA_UPDATED", "FORM", id, before, snapshot(form), ip);
     return FormResponse.from(form);
@@ -168,18 +172,166 @@ public class FormService {
     return values;
   }
 
+  private void updateSchema(FormDefinition form, FormSchemaRequest request) {
+    Instant now = clock.instant();
+    Map<UUID, FormSection> existingSections = new HashMap<>();
+    Map<UUID, FormField> existingFields = new HashMap<>();
+    form.getSections()
+        .forEach(
+            section -> {
+              existingSections.put(section.getId(), section);
+              section.getFields().forEach(field -> existingFields.put(field.getId(), field));
+            });
+    Set<UUID> requestedFieldIds = new HashSet<>();
+    List<FormSection> updatedSections = new ArrayList<>();
+    for (int sectionOrder = 0; sectionOrder < request.sections().size(); sectionOrder++) {
+      FormSectionRequest sectionRequest = request.sections().get(sectionOrder);
+      FormSection section =
+          sectionRequest.id() == null ? null : existingSections.get(sectionRequest.id());
+      if (sectionRequest.id() != null && section == null)
+        throw bad("INVALID_SECTION_ID", "Form bölümü bu forma ait değil.");
+      if (section == null) {
+        section = toSections(List.of(sectionRequest)).getFirst();
+        section.update(
+            sectionRequest.title().trim(),
+            blankToNull(sectionRequest.description()),
+            sectionOrder,
+            now);
+      } else {
+        section.update(
+            sectionRequest.title().trim(),
+            blankToNull(sectionRequest.description()),
+            sectionOrder,
+            now);
+        updateFields(
+            form, section, sectionRequest.fields(), existingFields, requestedFieldIds, now);
+      }
+      section.attach(form);
+      updatedSections.add(section);
+      section.getFields().forEach(field -> requestedFieldIds.add(field.getId()));
+    }
+    existingFields.values().stream()
+        .filter(field -> !requestedFieldIds.contains(field.getId()))
+        .filter(field -> answers.existsByFieldId(field.getId()))
+        .findFirst()
+        .ifPresent(
+            field -> {
+              throw conflict(
+                  "FORM_FIELD_IN_USE",
+                  "Cevaplanmış bir soru silinemez. Soruyu zorunlu olmaktan çıkarabilirsiniz: "
+                      + field.getLabel());
+            });
+    form.getSections().clear();
+    form.getSections().addAll(updatedSections);
+    form.schemaUpdated(request.name().trim(), now);
+  }
+
+  private void updateFields(
+      FormDefinition form,
+      FormSection section,
+      List<FormFieldRequest> requests,
+      Map<UUID, FormField> existingFields,
+      Set<UUID> requestedFieldIds,
+      Instant now) {
+    List<FormField> updated = new ArrayList<>();
+    for (int order = 0; order < requests.size(); order++) {
+      FormFieldRequest request = requests.get(order);
+      FormField field = request.id() == null ? null : existingFields.get(request.id());
+      if (request.id() != null && field == null)
+        throw bad("INVALID_FIELD_ID", "Soru bu forma ait değil.");
+      if (field == null) {
+        FormSection temporary =
+            toSections(
+                    List.of(
+                        new FormSectionRequest(
+                            null, section.getTitle(), section.getDescription(), List.of(request))))
+                .getFirst();
+        field = temporary.getFields().getFirst();
+        field.update(
+            request.key(),
+            request.label().trim(),
+            request.type(),
+            request.required(),
+            order,
+            blankToNull(request.placeholder()),
+            request.requirementId(),
+            request.validationRules(),
+            now);
+      } else {
+        ensureAnsweredFieldCompatible(field, request);
+        field.update(
+            request.key(),
+            request.label().trim(),
+            request.type(),
+            request.required(),
+            order,
+            blankToNull(request.placeholder()),
+            request.requirementId(),
+            request.validationRules(),
+            now);
+        updateOptions(field, request.options(), now);
+      }
+      field.attach(section);
+      field.attachForm(form);
+      updated.add(field);
+      requestedFieldIds.add(field.getId());
+    }
+    section.getFields().clear();
+    section.getFields().addAll(updated);
+  }
+
+  private void ensureAnsweredFieldCompatible(FormField field, FormFieldRequest request) {
+    if (!answers.existsByFieldId(field.getId())) return;
+    Set<String> currentOptions =
+        field.getOptions().stream()
+            .map(FormFieldOption::getValue)
+            .collect(java.util.stream.Collectors.toSet());
+    Set<String> requestedOptions =
+        request.options().stream()
+            .map(FormOptionRequest::value)
+            .collect(java.util.stream.Collectors.toSet());
+    if (!field.getKey().equals(request.key())
+        || field.getType() != request.type()
+        || !currentOptions.equals(requestedOptions))
+      throw conflict(
+          "ANSWERED_FIELD_STRUCTURE_LOCKED",
+          "Cevaplanmış sorunun anahtarı, türü veya seçenek değerleri değiştirilemez: "
+              + field.getLabel());
+  }
+
+  private void updateOptions(FormField field, List<FormOptionRequest> requests, Instant now) {
+    Map<UUID, FormFieldOption> existing = new HashMap<>();
+    field.getOptions().forEach(option -> existing.put(option.getId(), option));
+    List<FormFieldOption> updated = new ArrayList<>();
+    for (int order = 0; order < requests.size(); order++) {
+      FormOptionRequest request = requests.get(order);
+      FormFieldOption option = request.id() == null ? null : existing.get(request.id());
+      if (request.id() != null && option == null)
+        throw bad("INVALID_OPTION_ID", "Seçenek bu soruya ait değil.");
+      if (option == null)
+        option = FormFieldOption.create(request.label().trim(), request.value(), order, now);
+      else option.update(request.label().trim(), request.value(), order, now);
+      option.attach(field);
+      updated.add(option);
+    }
+    field.getOptions().clear();
+    field.getOptions().addAll(updated);
+  }
+
   private List<FormSection> copySections(FormDefinition source) {
     List<FormSectionRequest> requests =
         source.getSections().stream()
             .map(
                 section ->
                     new FormSectionRequest(
+                        null,
                         section.getTitle(),
                         section.getDescription(),
                         section.getFields().stream()
                             .map(
                                 field ->
                                     new FormFieldRequest(
+                                        null,
                                         field.getKey(),
                                         field.getLabel(),
                                         field.getType(),
@@ -191,7 +343,7 @@ public class FormService {
                                             .map(
                                                 option ->
                                                     new FormOptionRequest(
-                                                        option.getLabel(), option.getValue()))
+                                                        null, option.getLabel(), option.getValue()))
                                             .toList()))
                             .toList()))
             .toList();
@@ -284,6 +436,11 @@ public class FormService {
     Object value = rules.get(key);
     if (value != null && !(value instanceof Number))
       throw bad("INVALID_VALIDATION_RULE", key + " sayı olmalıdır.");
+  }
+
+  private void ensureEditable(FormDefinition form) {
+    if (form.getStatus() == FormStatus.RETIRED)
+      throw conflict("FORM_IMMUTABLE", "Kullanım dışı form değiştirilemez.");
   }
 
   private void ensureDraft(FormDefinition form) {

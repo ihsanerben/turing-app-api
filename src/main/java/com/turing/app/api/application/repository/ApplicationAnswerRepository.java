@@ -11,4 +11,6 @@ public interface ApplicationAnswerRepository extends JpaRepository<ApplicationAn
   @Modifying
   @Query("delete from ApplicationAnswer a where a.application.id=:applicationId")
   void deleteByApplicationId(@Param("applicationId") UUID applicationId);
+
+  boolean existsByFieldId(UUID fieldId);
 }

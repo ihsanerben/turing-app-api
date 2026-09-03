@@ -31,16 +31,22 @@ public class AdminStatisticsService {
 
   @Transactional(readOnly = true)
   public AdminStatisticsResponse get() {
+    long pending =
+        applications.countByStatus(ApplicationStatus.DRAFT)
+            + applications.countByStatus(ApplicationStatus.SUBMITTED)
+            + applications.countByStatus(ApplicationStatus.UNDER_REVIEW)
+            + applications.countByStatus(ApplicationStatus.SHORTLISTED)
+            + applications.countByStatus(ApplicationStatus.INTERVIEW)
+            + applications.countByStatus(ApplicationStatus.WAITLISTED);
     return new AdminStatisticsResponse(
         users.countByRole(Role.USER),
         applications.countDistinctApplicants(),
         applications.count(),
-        applications.countByStatus(ApplicationStatus.DRAFT),
-        applications.countByStatus(ApplicationStatus.SUBMITTED),
-        applications.countByStatus(ApplicationStatus.UNDER_REVIEW),
+        pending,
+        applications.countByStatus(ApplicationStatus.MISSING_DOCUMENT),
         applications.countByStatus(ApplicationStatus.APPROVED),
-        applications.countByStatus(ApplicationStatus.REJECTED),
-        applications.countByStatus(ApplicationStatus.WAITLISTED),
+        applications.countByStatus(ApplicationStatus.REJECTED)
+            + applications.countByStatus(ApplicationStatus.WITHDRAWN),
         applications.averageCompletion(),
         programs.countByActiveTrue(),
         periods.countByStatus(PeriodStatus.SCHEDULED),

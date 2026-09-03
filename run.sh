@@ -42,5 +42,14 @@ if (( ${#JWT_SECRET} < 32 )); then
   exit 1
 fi
 
+if [[ "${MAIL_SMTP_AUTH:-false}" == "true" ]]; then
+  for variable_name in MAIL_HOST MAIL_PORT MAIL_USERNAME MAIL_PASSWORD MAIL_FROM; do
+    if [[ -z "${!variable_name:-}" ]]; then
+      echo "SMTP doğrulaması açıkken zorunlu değişken boş: ${variable_name}"
+      exit 1
+    fi
+  done
+fi
+
 cd "${SCRIPT_DIR}"
 exec ./mvnw spring-boot:run -Dspring-boot.run.profiles=local

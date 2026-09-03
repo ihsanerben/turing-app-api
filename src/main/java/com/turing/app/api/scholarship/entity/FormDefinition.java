@@ -66,6 +66,11 @@ public class FormDefinition {
     updatedAt = now;
   }
 
+  public void schemaUpdated(String name, Instant now) {
+    this.name = name;
+    this.updatedAt = now;
+  }
+
   public void publish(Instant now) {
     status = FormStatus.PUBLISHED;
     publishedAt = now;

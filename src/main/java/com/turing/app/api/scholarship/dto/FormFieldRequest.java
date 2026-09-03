@@ -6,6 +6,7 @@ import jakarta.validation.constraints.*;
 import java.util.*;
 
 public record FormFieldRequest(
+    UUID id,
     @NotBlank @Pattern(regexp = "[a-z][a-z0-9_]*") @Size(max = 80) String key,
     @NotBlank @Size(max = 250) String label,
     @NotNull FormFieldType type,
