@@ -42,29 +42,8 @@ public final class ContentDtos {
   public record AnnouncementSummary(
       UUID id, String title, String slug, String summary, Instant publishedAt) {}
 
-  public record FaqRequest(
-      @NotBlank @Size(max = 500) String question,
-      @NotBlank @Size(max = 10000) String answer,
-      @PositiveOrZero int displayOrder,
-      @PositiveOrZero Long version) {}
-
-  public record FaqResponse(
-      UUID id, String question, String answer, int displayOrder, boolean active, long version) {
-    public static FaqResponse from(FaqItem v) {
-      return new FaqResponse(
-          v.getId(),
-          v.getQuestion(),
-          v.getAnswer(),
-          v.getDisplayOrder(),
-          v.isActive(),
-          v.getVersion());
-    }
-  }
-
   public record PublicAnnouncement(
       UUID id, String title, String slug, String summary, String content, Instant publishedAt) {}
-
-  public record PublicFaq(UUID id, String question, String answer, int displayOrder) {}
 
   public record VersionRequest(@NotNull @PositiveOrZero Long version) {}
 }

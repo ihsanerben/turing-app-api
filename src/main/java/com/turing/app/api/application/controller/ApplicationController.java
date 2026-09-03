@@ -3,6 +3,7 @@ package com.turing.app.api.application.controller;
 import com.turing.app.api.application.dto.*;
 import com.turing.app.api.application.service.ApplicationService;
 import com.turing.app.api.auth.security.AuthenticatedUser;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.util.*;
 import org.springframework.http.HttpStatus;
@@ -55,8 +56,9 @@ public class ApplicationController {
   public ApplicationResponse submit(
       @AuthenticationPrincipal AuthenticatedUser user,
       @PathVariable UUID id,
-      @Valid @RequestBody ApplicationVersionRequest body) {
-    return service.submit(user.id(), id, body);
+      @Valid @RequestBody ApplicationVersionRequest body,
+      HttpServletRequest request) {
+    return service.submit(user.id(), id, body, request.getRemoteAddr());
   }
 
   @PostMapping("/{id}/withdraw")

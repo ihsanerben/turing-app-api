@@ -13,9 +13,13 @@ public final class AdminApplicationDtos {
 
   public record Summary(
       UUID id,
+      UUID studentUserId,
       String studentName,
       String studentEmail,
+      String university,
+      String department,
       UUID periodId,
+      UUID programId,
       String periodName,
       String programName,
       ApplicationStatus status,

@@ -2,16 +2,21 @@ package com.turing.app.api.interview.service;
 
 import com.turing.app.api.application.entity.*;
 import com.turing.app.api.application.repository.ApplicationRepository;
+import com.turing.app.api.audience.service.AudienceListService;
 import com.turing.app.api.audit.service.AuditService;
 import com.turing.app.api.interview.dto.*;
 import com.turing.app.api.interview.dto.AdminInterviewResponse.Feedback;
 import com.turing.app.api.interview.entity.*;
 import com.turing.app.api.interview.exception.InterviewException;
 import com.turing.app.api.interview.repository.*;
+import com.turing.app.api.notification.mail.EmailSender;
+import com.turing.app.api.notification.service.NotificationService;
 import com.turing.app.api.user.entity.User;
 import com.turing.app.api.user.repository.UserRepository;
 import java.time.*;
 import java.util.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -19,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class InterviewService {
+  private static final Logger log = LoggerFactory.getLogger(InterviewService.class);
   private static final Map<InterviewStatus, Set<InterviewStatus>> TRANSITIONS =
       Map.of(
           InterviewStatus.SCHEDULED,
@@ -35,6 +41,9 @@ public class InterviewService {
   private final UserRepository users;
   private final AuditService audit;
   private final Clock clock;
+  private final AudienceListService audienceLists;
+  private final EmailSender emailSender;
+  private final NotificationService notifications;
 
   public InterviewService(
       InterviewRepository interviews,
@@ -42,13 +51,19 @@ public class InterviewService {
       ApplicationRepository applications,
       UserRepository users,
       AuditService audit,
-      Clock clock) {
+      Clock clock,
+      AudienceListService audienceLists,
+      EmailSender emailSender,
+      NotificationService notifications) {
     this.interviews = interviews;
     this.feedback = feedback;
     this.applications = applications;
     this.users = users;
     this.audit = audit;
     this.clock = clock;
+    this.audienceLists = audienceLists;
+    this.emailSender = emailSender;
+    this.notifications = notifications;
   }
 
   @Transactional(readOnly = true)
@@ -72,15 +87,21 @@ public class InterviewService {
         .toList();
   }
 
+  @Transactional(readOnly = true)
+  public List<AdminInterviewResponse> all() {
+    return interviews.findAllByOrderByStartsAtDesc().stream().map(this::adminResponse).toList();
+  }
+
   @Transactional
   public AdminInterviewResponse create(
       UUID actorId, UUID applicationId, InterviewRequest r, String ip) {
     Application app = application(applicationId);
     if (app.getStatus() != ApplicationStatus.SHORTLISTED
-        && app.getStatus() != ApplicationStatus.INTERVIEW)
+        && app.getStatus() != ApplicationStatus.INTERVIEW
+        && app.getStatus() != ApplicationStatus.APPROVED)
       throw conflict(
           "APPLICATION_NOT_INTERVIEWABLE",
-          "Yalnız kısa liste veya mülakat durumundaki başvuruya mülakat planlanabilir.");
+          "Yalnız olumlu, kısa liste veya mülakat durumundaki başvuruya mülakat planlanabilir.");
     validate(r);
     User actor = user(actorId);
     Interview saved =
@@ -97,7 +118,35 @@ public class InterviewService {
     interviews.flush();
     audit.record(
         actorId, "INTERVIEW_SCHEDULED", "INTERVIEW", saved.getId(), "{}", scheduleJson(saved), ip);
+    User student = app.getProfile().getUser();
+    String message =
+        "Mülakatınız "
+            + r.startsAt()
+            + " tarihinde planlandı. Detayları hesabınızdan görebilirsiniz.";
+    notifications.create(
+        student.getId(), "Mülakatınız planlandı", message, "INFO", "INTERVIEW", saved.getId());
+    try {
+      emailSender.send(student.getEmail(), "Mülakatınız planlandı", message);
+    } catch (RuntimeException exception) {
+      log.warn("Interview email could not be sent interviewId={}", saved.getId(), exception);
+    }
     return adminResponse(saved);
+  }
+
+  @Transactional
+  public List<AdminInterviewResponse> createBulk(
+      UUID actorId, BulkInterviewRequest request, String ip) {
+    InterviewRequest schedule =
+        new InterviewRequest(
+            request.startsAt(),
+            request.endsAt(),
+            request.locationType(),
+            request.location(),
+            request.meetingUrl(),
+            null);
+    return audienceLists.entity(request.listId()).getApplications().stream()
+        .map(application -> create(actorId, application.getId(), schedule, ip))
+        .toList();
   }
 
   @Transactional
@@ -202,6 +251,10 @@ public class InterviewService {
     return new AdminInterviewResponse(
         v.getId(),
         v.getApplication().getId(),
+        v.getApplication().getProfile().getUser().getFirstName()
+            + " "
+            + v.getApplication().getProfile().getUser().getLastName(),
+        v.getApplication().getPeriod().getProgram().getName(),
         v.getStartsAt(),
         v.getEndsAt(),
         v.getStatus(),

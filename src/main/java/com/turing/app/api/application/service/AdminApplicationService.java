@@ -23,25 +23,15 @@ public class AdminApplicationService {
   private static final Map<ApplicationStatus, Set<ApplicationStatus>> TRANSITIONS =
       Map.of(
           ApplicationStatus.SUBMITTED,
-              Set.of(ApplicationStatus.UNDER_REVIEW, ApplicationStatus.MISSING_DOCUMENT),
-          ApplicationStatus.MISSING_DOCUMENT, Set.of(ApplicationStatus.REJECTED),
+              Set.of(ApplicationStatus.APPROVED, ApplicationStatus.REJECTED),
+          ApplicationStatus.MISSING_DOCUMENT,
+              Set.of(ApplicationStatus.APPROVED, ApplicationStatus.REJECTED),
           ApplicationStatus.UNDER_REVIEW,
-              Set.of(
-                  ApplicationStatus.MISSING_DOCUMENT,
-                  ApplicationStatus.SHORTLISTED,
-                  ApplicationStatus.REJECTED,
-                  ApplicationStatus.WAITLISTED),
+              Set.of(ApplicationStatus.APPROVED, ApplicationStatus.REJECTED),
           ApplicationStatus.SHORTLISTED,
-              Set.of(
-                  ApplicationStatus.INTERVIEW,
-                  ApplicationStatus.APPROVED,
-                  ApplicationStatus.REJECTED,
-                  ApplicationStatus.WAITLISTED),
+              Set.of(ApplicationStatus.APPROVED, ApplicationStatus.REJECTED),
           ApplicationStatus.INTERVIEW,
-              Set.of(
-                  ApplicationStatus.APPROVED,
-                  ApplicationStatus.REJECTED,
-                  ApplicationStatus.WAITLISTED),
+              Set.of(ApplicationStatus.APPROVED, ApplicationStatus.REJECTED),
           ApplicationStatus.WAITLISTED,
               Set.of(ApplicationStatus.APPROVED, ApplicationStatus.REJECTED));
   private static final Map<String, String> SORTS =
@@ -89,6 +79,7 @@ public class AdminApplicationService {
   public PageResponse<Summary> list(
       String search,
       UUID periodId,
+      UUID programId,
       ApplicationStatus status,
       int page,
       int size,
@@ -104,6 +95,8 @@ public class AdminApplicationService {
         (root, query, cb) -> {
           List<jakarta.persistence.criteria.Predicate> values = new ArrayList<>();
           if (periodId != null) values.add(cb.equal(root.get("period").get("id"), periodId));
+          if (programId != null)
+            values.add(cb.equal(root.get("period").get("program").get("id"), programId));
           if (status != null) values.add(cb.equal(root.get("status"), status));
           if (search != null && !search.isBlank()) {
             String q = "%" + search.trim().toLowerCase(Locale.ROOT) + "%";
@@ -132,14 +125,26 @@ public class AdminApplicationService {
   }
 
   @Transactional
-  public Note addNote(UUID actorId, UUID id, NoteRequest request, String ip) {
+  public Note saveNote(UUID actorId, UUID id, NoteRequest request, String ip) {
     Application app = find(id);
     User actor = findUser(actorId);
     ApplicationNote saved =
-        notes.save(ApplicationNote.create(app, actor, request.content().trim(), clock.instant()));
+        notes
+            .findFirstByApplicationIdOrderByCreatedAtDesc(id)
+            .map(
+                value -> {
+                  value.update(actor, request.content().trim(), clock.instant());
+                  return value;
+                })
+            .orElseGet(
+                () ->
+                    notes.save(
+                        ApplicationNote.create(
+                            app, actor, request.content().trim(), clock.instant())));
+    notes.flush();
     audit.record(
         actorId,
-        "APPLICATION_NOTE_ADDED",
+        "APPLICATION_NOTE_SAVED",
         "APPLICATION",
         id,
         "{}",
@@ -225,9 +230,17 @@ public class AdminApplicationService {
     User user = app.getProfile().getUser();
     return new Summary(
         app.getId(),
+        user.getId(),
         name(user),
         user.getEmail(),
+        Optional.ofNullable(app.getProfile().getUniversity())
+            .map(value -> value.getName())
+            .orElse(app.getProfile().getOtherUniversity()),
+        Optional.ofNullable(app.getProfile().getDepartment())
+            .map(value -> value.getName())
+            .orElse(app.getProfile().getOtherDepartment()),
         app.getPeriod().getId(),
+        app.getPeriod().getProgram().getId(),
         app.getPeriod().getName(),
         app.getPeriod().getProgram().getName(),
         app.getStatus(),

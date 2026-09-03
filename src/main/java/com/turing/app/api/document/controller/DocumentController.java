@@ -31,6 +31,20 @@ public class DocumentController {
     return service.createRequirement(periodId, body);
   }
 
+  @PutMapping("/api/admin/application-periods/{periodId}/document-requirements/{requirementId}")
+  public DocumentRequirementResponse updateRequirement(
+      @PathVariable UUID periodId,
+      @PathVariable UUID requirementId,
+      @Valid @RequestBody DocumentRequirementRequest body) {
+    return service.updateRequirement(periodId, requirementId, body);
+  }
+
+  @DeleteMapping("/api/admin/application-periods/{periodId}/document-requirements/{requirementId}")
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  public void deleteRequirement(@PathVariable UUID periodId, @PathVariable UUID requirementId) {
+    service.deleteRequirement(periodId, requirementId);
+  }
+
   @GetMapping("/api/me/applications/{applicationId}/document-requirements")
   public List<DocumentRequirementResponse> requirements(
       @AuthenticationPrincipal AuthenticatedUser user, @PathVariable UUID applicationId) {
@@ -63,6 +77,18 @@ public class DocumentController {
         ContentDisposition.attachment()
             .filename(value.originalName(), StandardCharsets.UTF_8)
             .build();
+    return ResponseEntity.ok()
+        .contentType(MediaType.parseMediaType(value.mimeType()))
+        .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
+        .contentLength(value.content().length)
+        .body(value.content());
+  }
+
+  @GetMapping("/api/admin/documents/{id}")
+  public ResponseEntity<byte[]> adminDownload(@PathVariable UUID id) {
+    DocumentDownload value = service.adminDownload(id);
+    ContentDisposition disposition =
+        ContentDisposition.inline().filename(value.originalName(), StandardCharsets.UTF_8).build();
     return ResponseEntity.ok()
         .contentType(MediaType.parseMediaType(value.mimeType()))
         .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())

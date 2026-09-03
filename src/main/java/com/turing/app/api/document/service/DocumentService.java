@@ -90,6 +90,45 @@ public class DocumentService {
     }
   }
 
+  @Transactional
+  public DocumentRequirementResponse updateRequirement(
+      UUID periodId, UUID requirementId, DocumentRequirementRequest request) {
+    ApplicationPeriod period = findPeriod(periodId);
+    ensureRequirementsConfigurable(period);
+    DocumentRequirement requirement = findRequirement(periodId, requirementId);
+    boolean duplicate =
+        requirements.findByPeriodIdOrderByDisplayOrderAsc(periodId).stream()
+            .anyMatch(
+                value ->
+                    !value.getId().equals(requirementId)
+                        && value.getName().equalsIgnoreCase(request.name().trim()));
+    if (duplicate) throw conflict("REQUIREMENT_ALREADY_EXISTS", "Bu belge gereksinimi zaten var.");
+    requirement.update(
+        request.name().trim(),
+        clean(request.description()),
+        request.required(),
+        request.allowedMimeTypes().stream().distinct().toList(),
+        request.maxSizeBytes(),
+        request.order(),
+        clock.instant());
+    requirements.flush();
+    return DocumentRequirementResponse.from(requirement);
+  }
+
+  @Transactional
+  public void deleteRequirement(UUID periodId, UUID requirementId) {
+    ApplicationPeriod period = findPeriod(periodId);
+    ensureRequirementsConfigurable(period);
+    DocumentRequirement requirement = findRequirement(periodId, requirementId);
+    try {
+      requirements.delete(requirement);
+      requirements.flush();
+    } catch (DataIntegrityViolationException exception) {
+      throw conflict(
+          "REQUIREMENT_IN_USE", "Bu belge bir formda veya başvuruda kullanıldığı için silinemez.");
+    }
+  }
+
   @Transactional(readOnly = true)
   public List<StoredFileResponse> list(UUID userId, UUID applicationId) {
     findOwned(userId, applicationId);
@@ -166,6 +205,16 @@ public class DocumentService {
         file.getOriginalName(), file.getMimeType(), storage().get(file.getStorageKey()));
   }
 
+  @Transactional(readOnly = true)
+  public DocumentDownload adminDownload(UUID fileId) {
+    StoredFile file =
+        files.findById(fileId).orElseThrow(() -> notFound("FILE_NOT_FOUND", "Dosya bulunamadı."));
+    if (file.getStatus() == FileStatus.DELETED)
+      throw notFound("FILE_NOT_FOUND", "Dosya bulunamadı.");
+    return new DocumentDownload(
+        file.getOriginalName(), file.getMimeType(), storage().get(file.getStorageKey()));
+  }
+
   @Transactional
   public void delete(UUID userId, UUID fileId) {
     StoredFile file = findOwnedFile(userId, fileId);
@@ -200,9 +249,10 @@ public class DocumentService {
 
   private Application findEditable(UUID userId, UUID id) {
     Application app = findOwned(userId, id);
-    if (app.getStatus() == ApplicationStatus.MISSING_DOCUMENT) return app;
     Instant now = clock.instant();
-    if (app.getStatus() != ApplicationStatus.DRAFT)
+    if (app.getStatus() != ApplicationStatus.DRAFT
+        && app.getStatus() != ApplicationStatus.SUBMITTED
+        && app.getStatus() != ApplicationStatus.MISSING_DOCUMENT)
       throw conflict("DOCUMENTS_LOCKED", "Bu durumdaki başvurunun belgeleri değiştirilemez.");
     if (app.getPeriod().getStatus() != PeriodStatus.OPEN
         || now.isBefore(app.getPeriod().getStartsAt())
@@ -227,6 +277,23 @@ public class DocumentService {
     return periods
         .findById(id)
         .orElseThrow(() -> notFound("PERIOD_NOT_FOUND", "Başvuru dönemi bulunamadı."));
+  }
+
+  private DocumentRequirement findRequirement(UUID periodId, UUID requirementId) {
+    DocumentRequirement requirement =
+        requirements
+            .findById(requirementId)
+            .orElseThrow(() -> notFound("REQUIREMENT_NOT_FOUND", "Belge gereksinimi bulunamadı."));
+    if (!requirement.getPeriod().getId().equals(periodId))
+      throw notFound("REQUIREMENT_NOT_FOUND", "Belge gereksinimi bulunamadı.");
+    return requirement;
+  }
+
+  private void ensureRequirementsConfigurable(ApplicationPeriod period) {
+    if (!CONFIGURABLE.contains(period.getStatus()))
+      throw conflict(
+          "REQUIREMENTS_LOCKED",
+          "Belgeler yalnız taslak veya planlanmış programlarda değiştirilebilir.");
   }
 
   private ObjectStorage storage() {

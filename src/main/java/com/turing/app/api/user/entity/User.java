@@ -109,4 +109,20 @@ public class User {
   public Instant getEmailVerifiedAt() {
     return emailVerifiedAt;
   }
+
+  public Instant getLastLoginAt() {
+    return lastLoginAt;
+  }
+
+  public Instant getCreatedAt() {
+    return createdAt;
+  }
+
+  public Instant getUpdatedAt() {
+    return updatedAt;
+  }
+
+  public long getVersion() {
+    return version;
+  }
 }

@@ -6,7 +6,7 @@ services:
       POSTGRES_USER: turing_user
       POSTGRES_PASSWORD: turing_pass
     ports:
-      - "5433:5432"
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -37,45 +37,6 @@ services:
     ports:
       - "1025:1025"
       - "8025:8025"
-
-  api:
-    build: .
-    environment:
-      DB_URL: jdbc:postgresql://postgres:5432/turing_app
-      DB_USERNAME: turing_user
-      DB_PASSWORD: turing_pass
-      SPRING_PROFILES_ACTIVE: local
-      CORS_ALLOWED_ORIGIN: http://localhost:5173
-      JWT_SECRET: local-development-only-secret-with-at-least-32-characters
-      PROFILE_ENCRYPTION_KEY: bG9jYWwtcHJvZmlsZS1rZXktZXhhY3RseS0zMi1ieXQ=
-      MAIL_HOST: mailpit
-      MAIL_PORT: 1025
-      MAIL_SMTP_AUTH: "false"
-      MAIL_STARTTLS_ENABLED: "false"
-      MAIL_FROM: no-reply@turing.local
-      FRONTEND_BASE_URL: http://localhost:5173
-      STORAGE_ENABLED: "true"
-      S3_ENDPOINT: http://minio:9000
-      S3_ACCESS_KEY: turing_minio
-      S3_SECRET_KEY: turing_minio_password
-      S3_BUCKET: turing-documents
-    ports:
-      - "8080:8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-
-  web:
-    build:
-      context: ${WEB_BUILD_CONTEXT:-../turing-app-web}
-    environment:
-      VITE_API_BASE_URL: http://localhost:8080
-    ports:
-      - "5173:80"
-    depends_on:
-      - api
 
 volumes:
   postgres_data:

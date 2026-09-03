@@ -6,4 +6,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface ApplicationNoteRepository extends JpaRepository<ApplicationNote, UUID> {
   List<ApplicationNote> findByApplicationIdOrderByCreatedAtDesc(UUID applicationId);
+
+  Optional<ApplicationNote> findFirstByApplicationIdOrderByCreatedAtDesc(UUID applicationId);
 }

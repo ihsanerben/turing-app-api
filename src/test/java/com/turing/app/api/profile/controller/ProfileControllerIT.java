@@ -51,7 +51,7 @@ class ProfileControllerIT {
 
     String createBody =
         """
-                {"nationalId":"12345678901","birthDate":"2000-01-01","phone":"+905551112233",
+                {"nationalId":"10000000146","birthDate":"2000-01-01","phone":"+905551112233",
                  "city":"İstanbul","countryCode":"tr","universityId":"10000000-0000-0000-0000-000000000001",
                  "departmentId":"20000000-0000-0000-0000-000000000001","educationLevel":"BACHELOR","studyYear":2,"gpa":3.45}
                 """;
@@ -64,15 +64,12 @@ class ProfileControllerIT {
                 .content(createBody))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.version").value(0))
-        .andExpect(jsonPath("$.nationalId").value("12345678901"));
+        .andExpect(jsonPath("$.nationalId").value("10000000146"));
 
-    byte[] encrypted =
+    String nationalId =
         jdbc.queryForObject(
-            "select national_id_encrypted from student_profiles where user_id = ?",
-            byte[].class,
-            studentId);
-    assertThat(encrypted).isNotNull();
-    assertThat(new String(encrypted)).doesNotContain("12345678901");
+            "select national_id from student_profiles where user_id = ?", String.class, studentId);
+    assertThat(nationalId).isEqualTo("10000000146");
 
     mockMvc
         .perform(
@@ -92,33 +89,11 @@ class ProfileControllerIT {
     mockMvc
         .perform(get("/api/admin/users/" + studentId + "/profile").cookie(studentAccess))
         .andExpect(status().isForbidden());
-    String correction =
-        """
-                {"version":0,"nationalId":"12345678901","birthDate":"2000-01-01","phone":"+905551112233",
-                 "city":"Ankara","countryCode":"TR","otherUniversity":"Başka Üniversite",
-                 "otherDepartment":"Başka Bölüm","educationLevel":"BACHELOR","studyYear":3,"gpa":3.50}
-                """;
     mockMvc
-        .perform(
-            put("/api/admin/users/" + studentId + "/profile")
-                .with(csrf())
-                .cookie(adminAccess)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(correction))
+        .perform(get("/api/admin/users/" + studentId).cookie(adminAccess))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.city").value("Ankara"))
-        .andExpect(jsonPath("$.version").value(1));
-    assertThat(
-            jdbc.queryForObject(
-                "select count(*) from audit_logs where actor_id = ? and entity_id = (select id from student_profiles where user_id = ?)",
-                Integer.class,
-                adminId,
-                studentId))
-        .isEqualTo(1);
-    String auditJson =
-        jdbc.queryForObject(
-            "select new_values::text from audit_logs where actor_id = ?", String.class, adminId);
-    assertThat(auditJson).doesNotContain("12345678901");
+        .andExpect(jsonPath("$.city").value("İstanbul"))
+        .andExpect(jsonPath("$.nationalId").value("10000000146"));
   }
 
   @Test

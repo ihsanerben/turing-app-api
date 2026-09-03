@@ -33,7 +33,7 @@ class HardeningIT {
   @Test
   void enforcesThePublicAuthenticatedAndAdminRouteMatrix() throws Exception {
     mvc.perform(get("/api/health")).andExpect(status().isOk());
-    mvc.perform(get("/api/public/faq")).andExpect(status().isOk());
+    mvc.perform(get("/api/public/faq")).andExpect(status().isNotFound());
     mvc.perform(get("/api/me")).andExpect(status().isUnauthorized());
     mvc.perform(get("/api/admin/audit-logs")).andExpect(status().isUnauthorized());
     mvc.perform(get("/api/admin/audit-logs").with(user("student").roles("USER")))
@@ -68,10 +68,10 @@ class HardeningIT {
         EXPLAIN SELECT * FROM applications
         WHERE period_id = '00000000-0000-0000-0000-000000000001'
           AND status = 'SUBMITTED'
-        ORDER BY calculated_score DESC, id
+        ORDER BY created_at DESC, id
         LIMIT 20
         """,
-        "idx_applications_period_status_score");
+        "idx_applications_period_status_created");
     assertPlanUses(
         """
         EXPLAIN SELECT * FROM audit_logs

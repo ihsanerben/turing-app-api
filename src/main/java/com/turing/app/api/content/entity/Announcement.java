@@ -75,6 +75,12 @@ public class Announcement {
     updatedAt = now;
   }
 
+  public void restore(Instant now) {
+    status = AnnouncementStatus.DRAFT;
+    publishedAt = null;
+    updatedAt = now;
+  }
+
   public UUID getId() {
     return id;
   }

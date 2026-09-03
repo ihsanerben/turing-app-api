@@ -5,7 +5,6 @@ public enum PeriodStatus {
   SCHEDULED,
   OPEN,
   CLOSED,
-  EVALUATION,
   COMPLETED,
   ARCHIVED
 }

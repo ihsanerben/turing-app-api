@@ -81,38 +81,41 @@ class ContentControllerIT {
     mvc.perform(get("/api/public/announcements"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$").isEmpty());
-    String faq =
-        JsonPath.read(
-            mvc.perform(
-                    post("/api/admin/faq-items")
-                        .with(csrf())
-                        .cookie(admin)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(
-                            "{\"question\":\"Kimler başvurabilir?\",\"answer\":\"Aktif öğrenciler.\",\"displayOrder\":1}"))
-                .andExpect(status().isCreated())
-                .andReturn()
-                .getResponse()
-                .getContentAsString(),
-            "$.id");
-    mvc.perform(get("/api/public/faq"))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$[0].question").value("Kimler başvurabilir?"));
     mvc.perform(
-            post("/api/admin/faq-items/" + faq + "/archive")
+            post("/api/admin/announcements/" + announcement + "/restore")
                 .with(csrf())
                 .cookie(admin)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"version\":0}"))
-        .andExpect(status().isOk());
-    mvc.perform(get("/api/public/faq"))
+                .content("{\"version\":2}"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$").isEmpty());
+        .andExpect(jsonPath("$.status").value("DRAFT"));
+    mvc.perform(
+            put("/api/admin/announcements/" + announcement)
+                .with(csrf())
+                .cookie(admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    "{\"title\":\"Güncel dönem\",\"slug\":\"yeni-donem\",\"summary\":\"Güncel özet\",\"content\":\"Güncel içerik\",\"version\":3}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.title").value("Güncel dönem"));
+    mvc.perform(
+            post("/api/admin/announcements/" + announcement + "/publish")
+                .with(csrf())
+                .cookie(admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"version\":4}"))
+        .andExpect(status().isOk());
+    mvc.perform(
+            delete("/api/admin/announcements/" + announcement + "?version=5")
+                .with(csrf())
+                .cookie(admin))
+        .andExpect(status().isNoContent());
+    mvc.perform(get("/api/admin/announcements/" + announcement).cookie(admin))
+        .andExpect(status().isNotFound());
     assertThat(
             jdbc.queryForObject(
-                "select count(*) from audit_logs where entity_type in ('ANNOUNCEMENT','FAQ_ITEM')",
-                Integer.class))
-        .isEqualTo(5);
+                "select count(*) from audit_logs where entity_type='ANNOUNCEMENT'", Integer.class))
+        .isEqualTo(7);
   }
 
   private Cookie admin(String email) throws Exception {

@@ -8,6 +8,8 @@ import java.util.*;
 public record AdminInterviewResponse(
     UUID id,
     UUID applicationId,
+    String studentName,
+    String programName,
     Instant startsAt,
     Instant endsAt,
     InterviewStatus status,

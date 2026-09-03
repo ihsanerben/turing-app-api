@@ -9,4 +9,6 @@ public interface ApplicationPeriodRepository extends JpaRepository<ApplicationPe
 
   List<ApplicationPeriod> findByProgramIdAndStatusInOrderByStartsAtDesc(
       UUID id, Collection<PeriodStatus> statuses);
+
+  long countByStatus(PeriodStatus status);
 }

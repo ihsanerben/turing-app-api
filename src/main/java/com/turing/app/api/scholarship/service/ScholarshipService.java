@@ -87,13 +87,9 @@ public class ScholarshipService {
     checkVersion(value.getVersion(), version);
     boolean blocked =
         periods.findByProgramIdOrderByStartsAtDesc(id).stream()
-            .anyMatch(
-                p ->
-                    p.getStatus() == PeriodStatus.OPEN || p.getStatus() == PeriodStatus.EVALUATION);
+            .anyMatch(p -> p.getStatus() == PeriodStatus.OPEN);
     if (blocked)
-      throw conflict(
-          "PROGRAM_HAS_ACTIVE_PERIOD",
-          "Açık veya değerlendirmedeki dönem varken program arşivlenemez.");
+      throw conflict("PROGRAM_HAS_ACTIVE_PERIOD", "Açık dönem varken program arşivlenemez.");
     String before = snapshot(value);
     value.archive(clock.instant());
     programs.flush();
@@ -133,7 +129,9 @@ public class ScholarshipService {
   public PeriodResponse updatePeriod(UUID actor, UUID id, PeriodRequest request, String ip) {
     ApplicationPeriod value = findPeriod(id);
     checkVersion(value.getVersion(), request.version());
-    if (value.getStatus() != PeriodStatus.DRAFT && value.getStatus() != PeriodStatus.SCHEDULED)
+    if (value.getStatus() != PeriodStatus.DRAFT
+        && value.getStatus() != PeriodStatus.SCHEDULED
+        && value.getStatus() != PeriodStatus.OPEN)
       throw conflict("PERIOD_NOT_EDITABLE", "Bu durumdaki dönem düzenlenemez.");
     if (!value.getProgram().getId().equals(request.programId()))
       throw bad("PROGRAM_CANNOT_CHANGE", "Dönemin programı değiştirilemez.");
@@ -180,10 +178,10 @@ public class ScholarshipService {
     ScholarshipProgram value =
         programs
             .findBySlugAndActiveTrue(slug)
-            .orElseThrow(() -> notFound("PROGRAM_NOT_FOUND", "Burs programı bulunamadı."));
+            .orElseThrow(() -> notFound("PROGRAM_NOT_FOUND", "Başvuru programı bulunamadı."));
     PublicScholarshipResponse response = publicResponse(value);
     if (response.periods().isEmpty())
-      throw notFound("PROGRAM_NOT_FOUND", "Burs programı bulunamadı.");
+      throw notFound("PROGRAM_NOT_FOUND", "Başvuru programı bulunamadı.");
     return response;
   }
 
@@ -203,10 +201,13 @@ public class ScholarshipService {
               next == PeriodStatus.SCHEDULED
                   || next == PeriodStatus.OPEN
                   || next == PeriodStatus.ARCHIVED;
-          case SCHEDULED -> next == PeriodStatus.OPEN || next == PeriodStatus.ARCHIVED;
-          case OPEN -> next == PeriodStatus.CLOSED;
-          case CLOSED -> next == PeriodStatus.EVALUATION;
-          case EVALUATION -> next == PeriodStatus.COMPLETED;
+          case SCHEDULED ->
+              next == PeriodStatus.OPEN
+                  || next == PeriodStatus.DRAFT
+                  || next == PeriodStatus.CLOSED
+                  || next == PeriodStatus.ARCHIVED;
+          case OPEN -> next == PeriodStatus.DRAFT || next == PeriodStatus.CLOSED;
+          case CLOSED -> next == PeriodStatus.COMPLETED;
           case COMPLETED -> next == PeriodStatus.ARCHIVED;
           case ARCHIVED -> false;
         };
@@ -232,7 +233,7 @@ public class ScholarshipService {
   private ScholarshipProgram findProgram(UUID id) {
     return programs
         .findById(id)
-        .orElseThrow(() -> notFound("PROGRAM_NOT_FOUND", "Burs programı bulunamadı."));
+        .orElseThrow(() -> notFound("PROGRAM_NOT_FOUND", "Başvuru programı bulunamadı."));
   }
 
   private ApplicationPeriod findPeriod(UUID id) {

@@ -14,4 +14,6 @@ public interface ScholarshipProgramRepository extends JpaRepository<ScholarshipP
   List<ScholarshipProgram> findAllByOrderByNameAsc();
 
   List<ScholarshipProgram> findByActiveTrueOrderByNameAsc();
+
+  long countByActiveTrue();
 }

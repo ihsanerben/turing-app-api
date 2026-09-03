@@ -3,7 +3,6 @@ package com.turing.app.api.application.entity;
 import com.turing.app.api.profile.entity.StudentProfile;
 import com.turing.app.api.scholarship.entity.*;
 import jakarta.persistence.*;
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -30,9 +29,6 @@ public class Application {
 
   @Column(nullable = false)
   private int completion;
-
-  @Column(name = "calculated_score", precision = 8, scale = 3)
-  private BigDecimal calculatedScore;
 
   @Column(name = "submitted_at")
   private Instant submittedAt;
@@ -82,6 +78,10 @@ public class Application {
     updatedAt = now;
   }
 
+  public void updated(Instant now) {
+    updatedAt = now;
+  }
+
   public void withdraw(Instant now) {
     status = ApplicationStatus.WITHDRAWN;
     updatedAt = now;
@@ -92,11 +92,6 @@ public class Application {
     if (next == ApplicationStatus.APPROVED
         || next == ApplicationStatus.REJECTED
         || next == ApplicationStatus.WAITLISTED) decisionAt = now;
-    updatedAt = now;
-  }
-
-  public void updateCalculatedScore(BigDecimal score, Instant now) {
-    calculatedScore = score;
     updatedAt = now;
   }
 
@@ -122,10 +117,6 @@ public class Application {
 
   public int getCompletion() {
     return completion;
-  }
-
-  public BigDecimal getCalculatedScore() {
-    return calculatedScore;
   }
 
   public Instant getSubmittedAt() {

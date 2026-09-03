@@ -82,8 +82,9 @@ public class ProfileService {
     String otherDepartment = clean(request.otherDepartment());
     validateFallbacks(
         request.universityId(), request.departmentId(), otherUniversity, otherDepartment);
+    validateNationalId(request.nationalId());
     profile.update(
-        encryption.encrypt(clean(request.nationalId())),
+        clean(request.nationalId()),
         request.birthDate(),
         clean(request.phone()),
         clean(request.addressLine()),
@@ -166,6 +167,21 @@ public class ProfileService {
           "Listeden bölüm veya diğer bölüm alanından yalnız birini kullanın.");
   }
 
+  private void validateNationalId(String value) {
+    String nationalId = clean(value);
+    if (nationalId == null) return;
+    int[] digits = nationalId.chars().map(character -> character - '0').toArray();
+    int oddSum = digits[0] + digits[2] + digits[4] + digits[6] + digits[8];
+    int evenSum = digits[1] + digits[3] + digits[5] + digits[7];
+    boolean validTenth = Math.floorMod(oddSum * 7 - evenSum, 10) == digits[9];
+    boolean validEleventh = Arrays.stream(digits, 0, 10).sum() % 10 == digits[10];
+    if (!validTenth || !validEleventh)
+      throw error(
+          HttpStatus.BAD_REQUEST,
+          "INVALID_NATIONAL_ID",
+          "Kimlik numarasını kontrol edin. Geçerli 11 haneli bir kimlik numarası yazın.");
+  }
+
   private ProfileResponse response(StudentProfile p) {
     University u = p.getUniversity();
     Department d = p.getDepartment();
@@ -173,7 +189,7 @@ public class ProfileService {
         p.getId(),
         p.getUser().getId(),
         p.getVersion(),
-        encryption.decrypt(p.getNationalIdEncrypted()),
+        nationalId(p),
         p.getBirthDate(),
         p.getPhone(),
         p.getAddressLine(),
@@ -196,6 +212,11 @@ public class ProfileService {
     return new ProfileResponse(
         null, userId, null, null, null, null, null, null, null, null, null, null, null, null, null,
         null, null, null, null, null);
+  }
+
+  private String nationalId(StudentProfile profile) {
+    if (profile.getNationalId() != null) return profile.getNationalId();
+    return encryption.decrypt(profile.getNationalIdEncrypted());
   }
 
   private String auditSnapshot(StudentProfile p) {

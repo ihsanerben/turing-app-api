@@ -66,6 +66,23 @@ public class DocumentRequirement {
     return value;
   }
 
+  public void update(
+      String name,
+      String description,
+      boolean required,
+      List<String> mime,
+      long max,
+      int order,
+      Instant now) {
+    this.name = name;
+    this.description = description;
+    this.required = required;
+    this.allowedMimeTypes = List.copyOf(mime);
+    this.maxSizeBytes = max;
+    this.displayOrder = order;
+    this.updatedAt = now;
+  }
+
   public UUID getId() {
     return id;
   }
