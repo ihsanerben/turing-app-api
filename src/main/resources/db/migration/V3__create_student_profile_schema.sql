@@ -25,6 +25,7 @@ CREATE TABLE student_profiles (
     id UUID PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     national_id_encrypted BYTEA,
+    national_id VARCHAR(64),
     birth_date DATE,
     phone VARCHAR(32),
     address_line VARCHAR(300),

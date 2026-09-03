@@ -2,11 +2,17 @@ CREATE TABLE email_campaigns (
     id uuid PRIMARY KEY,
     subject varchar(200) NOT NULL,
     body text NOT NULL,
+    attachment_name varchar(255),
+    attachment_data bytea,
     status varchar(16) NOT NULL CHECK (status IN ('DRAFT','SENDING','COMPLETED')),
     created_by uuid NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     created_at timestamptz NOT NULL,
     updated_at timestamptz NOT NULL,
-    version bigint NOT NULL DEFAULT 0
+    version bigint NOT NULL DEFAULT 0,
+    CONSTRAINT ck_email_campaign_attachment_pair CHECK (
+        (attachment_name IS NULL AND attachment_data IS NULL)
+        OR (attachment_name IS NOT NULL AND attachment_data IS NOT NULL)
+    )
 );
 
 CREATE TABLE email_recipients (

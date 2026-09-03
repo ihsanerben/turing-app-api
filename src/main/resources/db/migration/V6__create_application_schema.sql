@@ -5,7 +5,6 @@ CREATE TABLE applications (
     form_id uuid NOT NULL REFERENCES forms(id) ON DELETE RESTRICT,
     status varchar(24) NOT NULL CHECK (status IN ('DRAFT','SUBMITTED','UNDER_REVIEW','MISSING_DOCUMENT','SHORTLISTED','INTERVIEW','APPROVED','REJECTED','WAITLISTED','WITHDRAWN')),
     completion integer NOT NULL DEFAULT 0 CHECK (completion BETWEEN 0 AND 100),
-    calculated_score numeric(8,3),
     submitted_at timestamptz,
     decision_at timestamptz,
     created_at timestamptz NOT NULL,
