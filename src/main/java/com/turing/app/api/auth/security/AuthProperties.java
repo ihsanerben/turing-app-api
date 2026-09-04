@@ -9,6 +9,7 @@ public record AuthProperties(
     Duration accessExpiration,
     Duration refreshExpiration,
     Duration verificationExpiration,
+    boolean emailVerificationRequired,
     Duration passwordResetExpiration,
     boolean cookieSecure,
     String cookieSameSite,

@@ -10,7 +10,9 @@ public final class NotificationDtos {
   public record CampaignRequest(
       @NotBlank @Size(max = 200) String subject,
       @NotBlank @Size(max = 10000) String body,
-      @NotEmpty @Size(max = 500) Set<UUID> userIds) {}
+      @NotEmpty @Size(max = 500) Set<UUID> userIds,
+      UUID audienceListId,
+      @Size(max = 200) String audienceListName) {}
 
   public record CampaignSummary(
       UUID id,
@@ -35,6 +37,9 @@ public final class NotificationDtos {
       UUID id,
       String subject,
       String body,
+      String attachmentName,
+      UUID audienceListId,
+      String audienceListName,
       String status,
       List<Recipient> recipients,
       Instant createdAt,

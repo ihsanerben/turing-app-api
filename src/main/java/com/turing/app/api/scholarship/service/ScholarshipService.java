@@ -39,8 +39,11 @@ public class ScholarshipService {
   }
 
   @Transactional(readOnly = true)
-  public List<ProgramResponse> adminPrograms() {
-    return programs.findAllByOrderByNameAsc().stream().map(ProgramResponse::from).toList();
+  public List<ProgramResponse> adminPrograms(boolean includeArchived) {
+    return (includeArchived
+            ? programs.findAllByOrderByNameAsc()
+            : programs.findByActiveTrueOrderByNameAsc())
+        .stream().map(ProgramResponse::from).toList();
   }
 
   @Transactional(readOnly = true)
@@ -85,15 +88,28 @@ public class ScholarshipService {
   public ProgramResponse archiveProgram(UUID actor, UUID id, Long version, String ip) {
     ScholarshipProgram value = findProgram(id);
     checkVersion(value.getVersion(), version);
-    boolean blocked =
-        periods.findByProgramIdOrderByStartsAtDesc(id).stream()
-            .anyMatch(p -> p.getStatus() == PeriodStatus.OPEN);
-    if (blocked)
-      throw conflict("PROGRAM_HAS_ACTIVE_PERIOD", "Açık dönem varken program arşivlenemez.");
+    ApplicationPeriod latest =
+        periods.findByProgramIdOrderByStartsAtDesc(id).stream().findFirst().orElse(null);
+    if (latest == null
+        || (latest.getStatus() != PeriodStatus.CLOSED
+            && latest.getStatus() != PeriodStatus.COMPLETED))
+      throw conflict("PROGRAM_NOT_FINISHED", "Yalnız bitmiş program arşive alınabilir.");
     String before = snapshot(value);
     value.archive(clock.instant());
     programs.flush();
     audit.record(actor, "PROGRAM_ARCHIVED", "SCHOLARSHIP_PROGRAM", id, before, snapshot(value), ip);
+    return ProgramResponse.from(value);
+  }
+
+  @Transactional
+  public ProgramResponse restoreProgram(UUID actor, UUID id, Long version, String ip) {
+    ScholarshipProgram value = findProgram(id);
+    checkVersion(value.getVersion(), version);
+    if (value.isActive()) throw conflict("PROGRAM_NOT_ARCHIVED", "Program zaten arşiv dışında.");
+    String before = snapshot(value);
+    value.restore(clock.instant());
+    programs.flush();
+    audit.record(actor, "PROGRAM_RESTORED", "SCHOLARSHIP_PROGRAM", id, before, snapshot(value), ip);
     return ProgramResponse.from(value);
   }
 

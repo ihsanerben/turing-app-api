@@ -55,6 +55,11 @@ public class ScholarshipProgram {
     updatedAt = now;
   }
 
+  public void restore(Instant now) {
+    active = true;
+    updatedAt = now;
+  }
+
   public UUID getId() {
     return id;
   }

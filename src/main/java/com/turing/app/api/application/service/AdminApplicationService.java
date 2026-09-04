@@ -20,26 +20,12 @@ import tools.jackson.databind.ObjectMapper;
 
 @Service
 public class AdminApplicationService {
-  private static final Map<ApplicationStatus, Set<ApplicationStatus>> TRANSITIONS =
-      Map.of(
+  private static final Set<ApplicationStatus> ADMIN_STATUSES =
+      Set.of(
           ApplicationStatus.SUBMITTED,
-              Set.of(
-                  ApplicationStatus.MISSING_DOCUMENT,
-                  ApplicationStatus.APPROVED,
-                  ApplicationStatus.REJECTED),
           ApplicationStatus.MISSING_DOCUMENT,
-              Set.of(
-                  ApplicationStatus.SUBMITTED,
-                  ApplicationStatus.APPROVED,
-                  ApplicationStatus.REJECTED),
-          ApplicationStatus.UNDER_REVIEW,
-              Set.of(ApplicationStatus.APPROVED, ApplicationStatus.REJECTED),
-          ApplicationStatus.SHORTLISTED,
-              Set.of(ApplicationStatus.APPROVED, ApplicationStatus.REJECTED),
-          ApplicationStatus.INTERVIEW,
-              Set.of(ApplicationStatus.APPROVED, ApplicationStatus.REJECTED),
-          ApplicationStatus.WAITLISTED,
-              Set.of(ApplicationStatus.APPROVED, ApplicationStatus.REJECTED));
+          ApplicationStatus.APPROVED,
+          ApplicationStatus.REJECTED);
   private static final Map<String, String> SORTS =
       Map.of(
           "createdAt",
@@ -100,6 +86,7 @@ public class AdminApplicationService {
     Specification<Application> spec =
         (root, query, cb) -> {
           List<jakarta.persistence.criteria.Predicate> values = new ArrayList<>();
+          values.add(cb.isTrue(root.get("period").get("program").get("active")));
           if (periodId != null) values.add(cb.equal(root.get("period").get("id"), periodId));
           if (programId != null)
             values.add(cb.equal(root.get("period").get("program").get("id"), programId));
@@ -183,7 +170,7 @@ public class AdminApplicationService {
           "VERSION_CONFLICT",
           "Kayıt başka bir işlem tarafından güncellendi. Sayfayı yenileyin.");
     ApplicationStatus old = app.getStatus();
-    if (!TRANSITIONS.getOrDefault(old, Set.of()).contains(request.status()))
+    if (!ADMIN_STATUSES.contains(request.status()))
       throw new ApplicationException(
           HttpStatus.CONFLICT,
           "INVALID_APPLICATION_TRANSITION",

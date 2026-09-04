@@ -89,7 +89,9 @@ public class InterviewService {
 
   @Transactional(readOnly = true)
   public List<AdminInterviewResponse> all() {
-    return interviews.findAllByOrderByStartsAtDesc().stream().map(this::adminResponse).toList();
+    return interviews.findByApplicationPeriodProgramActiveTrueOrderByStartsAtDesc().stream()
+        .map(this::adminResponse)
+        .toList();
   }
 
   @Transactional

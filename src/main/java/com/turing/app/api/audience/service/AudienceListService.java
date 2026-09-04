@@ -44,7 +44,9 @@ public class AudienceListService {
 
   @Transactional(readOnly = true)
   public List<Response> all() {
-    return lists.findAllByOrderByCreatedAtDesc().stream().map(this::response).toList();
+    return lists.findByProgramActiveTrueOrderByCreatedAtDesc().stream()
+        .map(this::response)
+        .toList();
   }
 
   @Transactional(readOnly = true)
@@ -58,6 +60,8 @@ public class AudienceListService {
         programs
             .findById(request.programId())
             .orElseThrow(() -> notFound("PROGRAM_NOT_FOUND", "Program bulunamadı."));
+    if (!program.isActive())
+      throw bad("PROGRAM_ARCHIVED", "Arşivlenmiş program için liste oluşturulamaz.");
     User actor =
         users.findById(actorId).orElseThrow(() -> notFound("ADMIN_NOT_FOUND", "Admin bulunamadı."));
     List<Application> selected = applications.findAllById(request.applicationIds());
@@ -111,9 +115,13 @@ public class AudienceListService {
   }
 
   public AudienceList entity(UUID id) {
-    return lists
-        .findById(id)
-        .orElseThrow(() -> notFound("AUDIENCE_LIST_NOT_FOUND", "Liste bulunamadı."));
+    AudienceList value =
+        lists
+            .findById(id)
+            .orElseThrow(() -> notFound("AUDIENCE_LIST_NOT_FOUND", "Liste bulunamadı."));
+    if (!value.getProgram().isActive())
+      throw notFound("AUDIENCE_LIST_NOT_FOUND", "Liste bulunamadı.");
+    return value;
   }
 
   private Response response(AudienceList value) {

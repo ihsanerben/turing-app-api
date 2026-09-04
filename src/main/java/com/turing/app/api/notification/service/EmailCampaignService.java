@@ -65,12 +65,14 @@ public class EmailCampaignService {
     byte[] attachmentData = attachmentBytes(attachment);
     String attachmentName = attachment == null ? null : safeName(attachment.getOriginalFilename());
     jdbc.update(
-        "insert into email_campaigns(id,subject,body,attachment_name,attachment_data,status,created_by,created_at,updated_at,version)values(?,?,?,?,?,'DRAFT',?,?,?,0)",
+        "insert into email_campaigns(id,subject,body,attachment_name,attachment_data,audience_list_id,audience_list_name,status,created_by,created_at,updated_at,version)values(?,?,?,?,?,?,?,'DRAFT',?,?,?,0)",
         id,
         request.subject().trim(),
         request.body().trim(),
         attachmentName,
         attachmentData,
+        request.audienceListId(),
+        clean(request.audienceListName()),
         actor,
         now,
         now);
@@ -110,6 +112,9 @@ public class EmailCampaignService {
                     rs.getObject("id", UUID.class),
                     rs.getString("subject"),
                     rs.getString("body"),
+                    rs.getString("attachment_name"),
+                    rs.getObject("audience_list_id", UUID.class),
+                    rs.getString("audience_list_name"),
                     rs.getString("status"),
                     List.of(),
                     rs.getTimestamp("created_at").toInstant(),
@@ -124,7 +129,16 @@ public class EmailCampaignService {
             id);
     CampaignDetail c = campaigns.getFirst();
     return new CampaignDetail(
-        c.id(), c.subject(), c.body(), c.status(), recipients, c.createdAt(), c.version());
+        c.id(),
+        c.subject(),
+        c.body(),
+        c.attachmentName(),
+        c.audienceListId(),
+        c.audienceListName(),
+        c.status(),
+        recipients,
+        c.createdAt(),
+        c.version());
   }
 
   @Transactional
@@ -241,5 +255,9 @@ public class EmailCampaignService {
     if (name == null || name.isBlank()) return "ek";
     String value = name.replaceAll("[\\r\\n]", "").trim();
     return value.length() > 255 ? value.substring(0, 255) : value;
+  }
+
+  private String clean(String value) {
+    return value == null || value.isBlank() ? null : value.trim();
   }
 }

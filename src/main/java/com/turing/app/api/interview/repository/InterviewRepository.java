@@ -5,7 +5,7 @@ import java.util.*;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface InterviewRepository extends JpaRepository<Interview, UUID> {
-  List<Interview> findAllByOrderByStartsAtDesc();
+  List<Interview> findByApplicationPeriodProgramActiveTrueOrderByStartsAtDesc();
 
   List<Interview> findByApplicationIdOrderByStartsAtDesc(UUID applicationId);
 
