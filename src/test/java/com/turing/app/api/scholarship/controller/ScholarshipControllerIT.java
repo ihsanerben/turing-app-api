@@ -127,11 +127,48 @@ class ScholarshipControllerIT {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"version\":0}"))
         .andExpect(status().isConflict())
-        .andExpect(jsonPath("$.code").value("PROGRAM_HAS_ACTIVE_PERIOD"));
+        .andExpect(jsonPath("$.code").value("PROGRAM_NOT_FINISHED"));
     mvc.perform(get("/api/public/scholarships"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$[0].program.slug").value("gelecek-bursu"))
         .andExpect(jsonPath("$[0].periods[0].status").value("OPEN"));
+    mvc.perform(
+            patch("/api/admin/application-periods/" + periodId + "/status")
+                .with(csrf())
+                .cookie(access)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"version\":1,\"status\":\"CLOSED\"}"))
+        .andExpect(status().isOk());
+    mvc.perform(
+            patch("/api/admin/application-periods/" + periodId + "/status")
+                .with(csrf())
+                .cookie(access)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"version\":2,\"status\":\"COMPLETED\"}"))
+        .andExpect(status().isOk());
+    mvc.perform(
+            post("/api/admin/scholarship-programs/" + programId + "/archive")
+                .with(csrf())
+                .cookie(access)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"version\":0}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.active").value(false));
+    mvc.perform(get("/api/admin/scholarship-programs").cookie(access))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$").isEmpty());
+    mvc.perform(
+            get("/api/admin/scholarship-programs").param("includeArchived", "true").cookie(access))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].active").value(false));
+    mvc.perform(
+            post("/api/admin/scholarship-programs/" + programId + "/restore")
+                .with(csrf())
+                .cookie(access)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"version\":1}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.active").value(true));
     mvc.perform(
             put("/api/admin/scholarship-programs/" + programId)
                 .with(csrf())
@@ -145,7 +182,7 @@ class ScholarshipControllerIT {
                 "select count(*) from audit_logs where actor_id=? and entity_type in ('SCHOLARSHIP_PROGRAM','APPLICATION_PERIOD')",
                 Integer.class,
                 id))
-        .isEqualTo(3);
+        .isEqualTo(7);
   }
 
   private void register() throws Exception {

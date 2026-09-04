@@ -314,6 +314,25 @@ class ApplicationControllerIT {
                 .with(csrf())
                 .cookie(admin)
                 .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    "{\"status\":\"REJECTED\",\"version\":5,\"reason\":\"Karar yeniden değerlendirildi.\"}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.application.status").value("REJECTED"));
+    mvc.perform(
+            patch("/api/admin/applications/" + applicationId + "/status")
+                .with(csrf())
+                .cookie(admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    "{\"status\":\"REJECTED\",\"version\":6,\"reason\":\"Gerekçe güncellendi.\"}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.application.status").value("REJECTED"))
+        .andExpect(jsonPath("$.history[0].reason").value("Gerekçe güncellendi."));
+    mvc.perform(
+            patch("/api/admin/applications/" + applicationId + "/status")
+                .with(csrf())
+                .cookie(admin)
+                .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"status\":\"REJECTED\",\"version\":4,\"reason\":\"Eski sürüm\"}"))
         .andExpect(status().isConflict())
         .andExpect(jsonPath("$.code").value("VERSION_CONFLICT"));
@@ -322,7 +341,7 @@ class ApplicationControllerIT {
                 "select count(*) from audit_logs where entity_id=? and action in ('APPLICATION_NOTE_SAVED','APPLICATION_STATUS_CHANGED')",
                 Integer.class,
                 UUID.fromString(applicationId)))
-        .isEqualTo(4);
+        .isEqualTo(6);
   }
 
   private String provisionPeriod(Cookie admin) throws Exception {

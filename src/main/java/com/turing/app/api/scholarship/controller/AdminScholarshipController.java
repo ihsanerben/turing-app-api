@@ -20,8 +20,9 @@ public class AdminScholarshipController {
   }
 
   @GetMapping("/scholarship-programs")
-  public List<ProgramResponse> programs() {
-    return service.adminPrograms();
+  public List<ProgramResponse> programs(
+      @RequestParam(defaultValue = "false") boolean includeArchived) {
+    return service.adminPrograms(includeArchived);
   }
 
   @GetMapping("/scholarship-programs/{id}")
@@ -54,6 +55,15 @@ public class AdminScholarshipController {
       @Valid @RequestBody VersionRequest body,
       HttpServletRequest request) {
     return service.archiveProgram(actor.id(), id, body.version(), request.getRemoteAddr());
+  }
+
+  @PostMapping("/scholarship-programs/{id}/restore")
+  public ProgramResponse restoreProgram(
+      @AuthenticationPrincipal AuthenticatedUser actor,
+      @PathVariable UUID id,
+      @Valid @RequestBody VersionRequest body,
+      HttpServletRequest request) {
+    return service.restoreProgram(actor.id(), id, body.version(), request.getRemoteAddr());
   }
 
   @GetMapping("/application-periods")

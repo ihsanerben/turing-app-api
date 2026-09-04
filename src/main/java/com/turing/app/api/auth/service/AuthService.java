@@ -68,7 +68,11 @@ public class AuthService {
                 request.firstName().trim(),
                 request.lastName().trim(),
                 now));
-    sendVerification(user, now);
+    if (properties.emailVerificationRequired()) {
+      sendVerification(user, now);
+    } else {
+      user.verify(now);
+    }
   }
 
   @Transactional

@@ -9,11 +9,11 @@ Spring Boot tabanlı backend uygulaması.
 
 ## Çalıştırma
 
-Docker Compose yalnız PostgreSQL, MinIO ve Mailpit altyapısını çalıştırır. Backend ve frontend
+Docker Compose yalnız PostgreSQL ve MinIO altyapısını çalıştırır. Backend ve frontend
 host üzerinde manuel başlatılır:
 
 ```bash
-docker compose up -d postgres minio mailpit
+docker compose up -d postgres minio
 cp .env.example .env # yalnız ilk kurulumda
 ./run.sh
 ```
@@ -26,4 +26,3 @@ Servisler:
 - API: `http://localhost:8080/api/health`
 - Web: `http://localhost:5173`
 - MinIO Console: `http://localhost:9001`
-- Mailpit: `http://localhost:8025`

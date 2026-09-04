@@ -51,6 +51,7 @@ app:
     access-expiration: ${JWT_ACCESS_EXPIRATION:PT15M}
     refresh-expiration: ${JWT_REFRESH_EXPIRATION:P14D}
     verification-expiration: ${EMAIL_VERIFICATION_EXPIRATION:PT24H}
+    email-verification-required: ${EMAIL_VERIFICATION_REQUIRED:true}
     password-reset-expiration: ${PASSWORD_RESET_EXPIRATION:PT1H}
     cookie-secure: ${COOKIE_SECURE:true}
     cookie-same-site: ${COOKIE_SAME_SITE:Lax}
