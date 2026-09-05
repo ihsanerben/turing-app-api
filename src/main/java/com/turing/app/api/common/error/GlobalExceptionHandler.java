@@ -7,6 +7,7 @@ import com.turing.app.api.auth.exception.AuthException;
 import com.turing.app.api.content.exception.ContentException;
 import com.turing.app.api.interview.exception.InterviewException;
 import com.turing.app.api.notification.exception.NotificationException;
+import com.turing.app.api.participation.exception.ParticipationException;
 import com.turing.app.api.profile.exception.ProfileException;
 import com.turing.app.api.scholarship.exception.ScholarshipException;
 import com.turing.app.api.user.exception.UserManagementException;
@@ -34,6 +35,13 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 public class GlobalExceptionHandler {
 
   private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+  @ExceptionHandler(ParticipationException.class)
+  public ResponseEntity<ApiErrorResponse> handleParticipation(
+      ParticipationException exception, HttpServletRequest request) {
+    return buildResponse(
+        exception.getStatus(), exception.getCode(), exception.getMessage(), request, List.of());
+  }
 
   @ExceptionHandler(AuthException.class)
   public ResponseEntity<ApiErrorResponse> handleAuth(

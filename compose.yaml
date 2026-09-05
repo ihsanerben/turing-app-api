@@ -1,4 +1,48 @@
 services:
+  api:
+    build:
+      context: .
+    env_file:
+      - .env
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      SERVER_PORT: "8080"
+      DB_URL: jdbc:postgresql://postgres:5432/turing_app
+      S3_ENDPOINT: http://minio:9000
+      CORS_ALLOWED_ORIGIN: http://localhost:5174
+      FRONTEND_BASE_URL: http://localhost:5174
+    ports:
+      - "8086:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/api/health"]
+      interval: 10s
+      timeout: 5s
+      start_period: 60s
+      retries: 12
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ../turing-app-web
+      args:
+        VITE_API_BASE_URL: http://localhost:8086
+    ports:
+      - "5174:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
   postgres:
     image: postgres:17-alpine
     environment:
@@ -14,6 +58,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    restart: unless-stopped
 
   minio:
     image: minio/minio:latest
@@ -31,6 +76,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    restart: unless-stopped
 
 volumes:
   postgres_data:
