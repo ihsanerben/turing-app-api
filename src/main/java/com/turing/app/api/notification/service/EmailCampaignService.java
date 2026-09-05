@@ -28,6 +28,7 @@ public class EmailCampaignService {
   private final AuditService audit;
   private final ObjectMapper json;
   private final Clock clock;
+  private final TransactionTemplate transactions;
 
   public EmailCampaignService(
       JdbcTemplate jdbc,
@@ -36,7 +37,8 @@ public class EmailCampaignService {
       @Qualifier("emailExecutor") Executor executor,
       AuditService audit,
       ObjectMapper json,
-      Clock clock) {
+      Clock clock,
+      TransactionTemplate transactions) {
     this.jdbc = jdbc;
     this.users = users;
     this.processor = processor;
@@ -44,6 +46,7 @@ public class EmailCampaignService {
     this.audit = audit;
     this.json = json;
     this.clock = clock;
+    this.transactions = transactions;
   }
 
   @Transactional
@@ -180,7 +183,25 @@ public class EmailCampaignService {
     TransactionSynchronizationManager.registerSynchronization(
         new TransactionSynchronization() {
           public void afterCommit() {
-            executor.execute(() -> processor.process(id));
+            try {
+              executor.execute(() -> processor.process(id));
+            } catch (java.util.concurrent.RejectedExecutionException exception) {
+              TransactionTemplate recovery =
+                  new TransactionTemplate(transactions.getTransactionManager());
+              recovery.setPropagationBehavior(
+                  org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+              recovery.executeWithoutResult(
+                  status -> {
+                    jdbc.update(
+                        "update email_recipients set status='FAILED',failure_message='Gönderim kapasitesi dolu. Yeniden deneyin.',updated_at=?,version=version+1 where campaign_id=? and status='PENDING'",
+                        now(),
+                        id);
+                    jdbc.update(
+                        "update email_campaigns set status='COMPLETED',updated_at=?,version=version+1 where id=?",
+                        now(),
+                        id);
+                  });
+            }
           }
         });
   }

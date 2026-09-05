@@ -72,7 +72,7 @@ public class EmailCampaignProcessor {
             notifications.create(
                 (UUID) row.get("user_id"),
                 (String) row.get("subject"),
-                (String) row.get("body"),
+                notificationBody((String) row.get("body")),
                 "INFO",
                 "EMAIL_CAMPAIGN",
                 (UUID) row.get("campaign_id"));
@@ -83,6 +83,12 @@ public class EmailCampaignProcessor {
                 now(),
                 id);
         });
+  }
+
+  private String notificationBody(String body) {
+    return body.length() <= 1000
+        ? body
+        : body.substring(0, 950) + "… Tam özet e-posta ile gönderildi.";
   }
 
   private String safe(String message) {
